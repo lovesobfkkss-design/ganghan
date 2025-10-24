@@ -1,0 +1,1388 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>학원 업무 체크리스트 + 단어시험 스케줄러</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .notification-badge {
+      position: fixed; top: 20px; right: 20px;
+      background: #ef4444; color: white; width: 50px; height: 50px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: bold; font-size: 18px; cursor: pointer;
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4); z-index: 999; animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }
+    .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; z-index:1100; }
+    .modal-card { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:#fff; width:96%; max-width:720px; border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.2); padding:20px; display:none; z-index:1110; }
+
+    /* 단어 스케줄러 내부 버튼/입력 프리셋 */
+    .btn{padding:.5rem .8rem;border-radius:.4rem;border:1px solid #e5e7eb;background:#0ea5e9;color:#fff}
+    .btn-secondary{background:#f8fafc;color:#0f172a}
+    .input{border:1px solid #e5e7eb;border-radius:.4rem;padding:.45rem .6rem}
+    .pill{padding:.15rem .5rem;border-radius:9999px;background:#f1f5f9;font-size:.75rem}
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+  <!-- 알림 배지 / 패널 -->
+  <div id="notificationBadge" class="notification-badge" onclick="toggleNotification()" style="display:none;">
+    <span id="notificationCount">0</span>
+  </div>
+  <div id="notificationPanel" style="display:none; position: fixed; top: 80px; right: 20px; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); max-width: 420px; z-index: 1000;">
+    <div style="display:flex; justify-content:space-between; margin-bottom: 15px;">
+      <div style="font-weight:bold; font-size:1.25rem;">🔔 알림</div>
+      <button onclick="toggleNotification()" style="font-size:1.5rem; color:#6b7280; cursor:pointer; border:none; background:none;">✕</button>
+    </div>
+    <div id="notificationContent" class="text-sm leading-6"></div>
+  </div>
+
+  <!-- 설정 모달 -->
+  <div id="settingsBackdrop" class="modal-backdrop"></div>
+  <div id="settingsModal" class="modal-card">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-xl font-bold">⚙️ 기본 체크리스트 설정</h3>
+      <button onclick="closeSettings()" class="text-gray-500 text-2xl leading-none">✕</button>
+    </div>
+    <p class="text-sm text-gray-600 mb-2">아래 항목들은 <b>매일 최초 로드 시 자동 생성</b>됩니다. (줄바꿈 기준)</p>
+    <textarea id="defaultTasksInput" class="w-full h-40 border rounded-lg p-3 mb-3" placeholder="예)\n청소 상태 확인\n단어 만들기\n오다비 보내기\n숙제 확인"></textarea>
+    <div class="flex items-center justify-between mb-1">
+      <div class="text-sm text-gray-500">변경 후 <b>저장</b>을 누르면 다음 날짜부터 새 목록이 시드됩니다.</div>
+      <div class="flex gap-2">
+        <button onclick="resetToRecommended()" class="px-3 py-2 rounded bg-gray-100">추천 기본값</button>
+        <button onclick="saveDefaultTasks()" class="px-4 py-2 rounded bg-indigo-600 text-white hover:bg-indigo-700">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="max-w-5xl mx-auto">
+    <!-- 날짜 헤더 -->
+    <div class="bg-white rounded-2xl shadow-xl p-4 mb-4">
+      <div class="flex items-center justify-between">
+        <button onclick="changeDate(-1)" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">← 전날</button>
+        <div class="text-center">
+          <div class="text-xl font-bold" id="currentDate">로딩중...</div>
+          <div id="dateInfo" class="text-sm font-bold text-green-600">오늘</div>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="openSettings()" class="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800">⚙️ 설정</button>
+          <button onclick="goToToday()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">오늘</button>
+          <button onclick="changeDate(1)" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">다음날 →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 메인 카드 -->
+    <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h1 class="text-3xl font-bold text-gray-800">학원 업무 체크리스트</h1>
+          <p class="text-xs text-green-600 mt-1">✅ 전체 조교 공유 모드 (실시간 동기화)</p>
+        </div>
+        <div class="text-right">
+          <div class="text-4xl font-bold text-indigo-600" id="completedCount">0/0</div>
+          <div class="text-sm text-gray-600">완료</div>
+        </div>
+      </div>
+
+      <div class="w-full bg-gray-200 rounded-full h-3 mb-6">
+        <div id="progressBar" class="bg-indigo-600 h-3 rounded-full transition-all duration-300" style="width:0%"></div>
+      </div>
+
+      <div class="mb-4 grid grid-cols-1 md:grid-cols-3 gap-2">
+        <input type="text" id="newTaskInput" placeholder="새 체크리스트 항목 추가" class="border rounded-lg px-3 py-2">
+        <input type="text" id="newTaskNoteInput" placeholder="(선택) 메모/내용" class="border rounded-lg px-3 py-2">
+        <button onclick="addNewTask()" class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">+ 추가</button>
+      </div>
+
+      <div id="dailyTasksList" class="space-y-3">
+        <div class="text-center text-gray-500 py-4">로딩중...</div>
+      </div>
+    </div>
+
+    <!-- 국어 코칭 -->
+    <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4">📚 국어 코칭 (<span id="koreanCount">0</span>명)</h2>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-4">
+        <input type="text" id="koreanName" placeholder="학생 이름" class="border rounded-lg px-3 py-2">
+        <input type="text" id="koreanScore" placeholder="점수" class="border rounded-lg px-3 py-2">
+        <select id="koreanAttendance" class="border rounded-lg px-3 py-2">
+          <option>출석</option><option>결석</option><option>지각</option>
+        </select>
+        <input type="text" id="koreanWrong" placeholder="틀린 문제" class="border rounded-lg px-3 py-2">
+      </div>
+      <button onclick="addKorean()" class="w-full bg-indigo-600 text-white rounded-lg py-2 mb-4 hover:bg-indigo-700">+ 학생 추가</button>
+      <div id="koreanList" class="space-y-2"></div>
+    </div>
+
+    <!-- 역사/과학 관리반 -->
+    <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4">🧭 역사/과학 관리반 (<span id="hsMgmtCount">0</span>명)</h2>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-4">
+        <select id="hsSubject" class="border rounded-lg px-3 py-2">
+          <option value="역사">역사</option>
+          <option value="과학">과학</option>
+        </select>
+        <input type="text" id="hsName" placeholder="학생 이름" class="border rounded-lg px-3 py-2">
+        <input type="text" id="hsScore" placeholder="점수" class="border rounded-lg px-3 py-2">
+        <input type="text" id="hsRange" placeholder="학습 범위/메모" class="border rounded-lg px-3 py-2">
+      </div>
+      <button onclick="addHsMgmt()" class="w-full bg-indigo-600 text-white rounded-lg py-2 mb-4 hover:bg-indigo-700">+ 학생 추가</button>
+      <div id="hsMgmtList" class="space-y-2"></div>
+    </div>
+
+    <!-- 타이핑 -->
+    <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4">⌨️ 타이핑 업무 (<span id="typingCount">0</span>개)</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-4">
+        <input type="text" id="typingTask" placeholder="업무 내용" class="border rounded-lg px-3 py-2">
+        <input type="text" id="typingProgress" placeholder="완료 범위" class="border rounded-lg px-3 py-2">
+      </div>
+      <button onclick="addTyping()" class="w-full bg-indigo-600 text-white rounded-lg py-2 mb-4 hover:bg-indigo-700">+ 업무 추가</button>
+      <div id="typingList" class="space-y-2"></div>
+    </div>
+
+    <!-- 재시험 (단어장/범위 포함) -->
+    <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4">
+        📝 재시험 관리 (<span id="retestCount">0</span>명)
+        <span id="todayRetestBadge" class="bg-red-500 text-white text-sm px-3 py-1 rounded-full ml-2" style="display:none;">오늘 0명</span>
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-6 gap-2 mb-4">
+        <input type="text" id="retestName" placeholder="학생 이름" class="border rounded-lg px-3 py-2">
+        <input type="text" id="retestSubject" placeholder="과목" class="border rounded-lg px-3 py-2">
+        <input type="text" id="retestVocabBook" placeholder="단어장" class="border rounded-lg px-3 py-2">
+        <input type="text" id="retestVocabRange" placeholder="단어 범위 (예: Day 11~15)" class="border rounded-lg px-3 py-2">
+        <input type="date" id="retestDate" class="border rounded-lg px-3 py-2">
+        <input type="time" id="retestTime" class="border rounded-lg px-3 py-2">
+      </div>
+      <button onclick="addRetest()" class="w-full bg-red-600 text-white rounded-lg py-2 mb-4 hover:bg-red-700">+ 재시험 학생 추가</button>
+      <div id="retestList"></div>
+    </div>
+
+    <!-- 클래스카드 테스트 -->
+    <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4">🃏 클래스카드 테스트</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+        <textarea id="ccRosterInput" placeholder="명단: 쉼표(,) 또는 줄바꿈으로 학생 여러 명 입력" class="border rounded-lg px-3 py-2 h-24"></textarea>
+        <textarea id="ccDoneInput" placeholder="완료자: 쉼표(,) 또는 줄바꿈으로 입력" class="border rounded-lg px-3 py-2 h-24"></textarea>
+        <div class="flex flex-col gap-2">
+          <button onclick="ccApplyRoster()" class="w-full bg-indigo-600 text-white rounded-lg py-2 hover:bg-indigo-700">명단 적용/덮어쓰기</button>
+          <button onclick="ccApplyDone()" class="w-full bg-green-600 text-white rounded-lg py-2 hover:bg-green-700">완료자 적용</button>
+          <button onclick="ccClearAll()" class="w-full bg-gray-200 text-gray-700 rounded-lg py-2 hover:bg-gray-300">초기화</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <h3 class="font-bold mb-2">전체 명단 (<span id="ccRosterCount">0</span>)</h3>
+          <div id="ccRosterList" class="space-y-1"></div>
+        </div>
+        <div>
+          <h3 class="font-bold mb-2 text-red-600">미응시자 목록 (<span id="ccPendingCount">0</span>)</h3>
+          <div id="ccPendingList" class="space-y-1"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 누적 단어 테스트 -->
+    <div class="bg-white rounded-2xl shadow-xl p-6 mb-10">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4">🧠 누적 단어 테스트</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+        <textarea id="vaRosterInput" placeholder="명단: 쉼표(,) 또는 줄바꿈으로 학생 여러 명 입력" class="border rounded-lg px-3 py-2 h-24"></textarea>
+        <textarea id="vaDoneInput" placeholder="완료자: 쉼표(,) 또는 줄바꿈으로 입력" class="border rounded-lg px-3 py-2 h-24"></textarea>
+        <div class="flex flex-col gap-2">
+          <button onclick="vaApplyRoster()" class="w-full bg-indigo-600 text-white rounded-lg py-2 hover:bg-indigo-700">명단 적용/덮어쓰기</button>
+          <button onclick="vaApplyDone()" class="w-full bg-green-600 text-white rounded-lg py-2 hover:bg-green-700">완료자 적용</button>
+          <button onclick="vaClearAll()" class="w-full bg-gray-200 text-gray-700 rounded-lg py-2 hover:bg-gray-300">초기화</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <h3 class="font-bold mb-2">전체 명단 (<span id="vaRosterCount">0</span>)</h3>
+          <div id="vaRosterList" class="space-y-1"></div>
+        </div>
+        <div>
+          <h3 class="font-bold mb-2 text-red-600">미응시자 목록 (<span id="vaPendingCount">0</span>)</h3>
+          <div id="vaPendingList" class="space-y-1"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 🌟 단어시험 스케줄러 (겹침 옵션 포함) -->
+    <div class="bg-white rounded-2xl shadow-xl p-6 mb-10">
+      <div class="flex items-center justify-between">
+        <h2 class="text-2xl font-bold text-gray-800">📘 단어시험 스케줄러</h2>
+        <div class="flex gap-2">
+          <button id="vocabTabToday" class="btn" onclick="vocabSwitchTab('today')">오늘</button>
+          <button id="vocabTabUpcoming" class="btn btn-secondary" onclick="vocabSwitchTab('upcoming')">다가오는</button>
+          <button id="vocabTabRules" class="btn btn-secondary" onclick="vocabSwitchTab('rules')">학생&규칙</button>
+          <button id="vocabTabBooks" class="btn btn-secondary" onclick="vocabSwitchTab('books')">교재</button>
+          <button id="vocabTabHelp" class="btn btn-secondary" onclick="vocabSwitchTab('help')">사용법</button>
+          <button class="btn btn-secondary ml-2" onclick="vocabExport()">내보내기</button>
+          <label class="btn btn-secondary cursor-pointer">
+            불러오기<input id="vocabImportFile" type="file" accept="application/json" class="hidden" onchange="vocabImport(event)"/>
+          </label>
+        </div>
+      </div>
+
+      <!-- TODAY -->
+      <section id="vocabViewToday" class="mt-4 space-y-3">
+        <div class="text-sm text-slate-600">보기 날짜: <b id="vocabViewDateLabel">-</b> (상단 날짜 이동과 연동)</div>
+        <div id="vocabTodayList" class="grid gap-3"></div>
+        <div id="vocabTodayEmpty" class="text-slate-500">해당 날짜의 단어시험이 없습니다.</div>
+      </section>
+
+      <!-- UPCOMING -->
+      <section id="vocabViewUpcoming" class="mt-4 space-y-3 hidden">
+        <div class="text-sm text-slate-600">오늘 포함 2주 일정</div>
+        <div id="vocabUpcomingList" class="grid gap-3"></div>
+      </section>
+
+      <!-- RULES -->
+      <section id="vocabViewRules" class="mt-4 space-y-4 hidden">
+        <div class="p-4 border rounded-xl">
+          <h3 class="font-semibold mb-2">새 규칙 추가</h3>
+          <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div>
+              <label class="text-sm">학생 이름</label>
+              <input id="vrName" class="input w-full" placeholder="예: 정수빈"/>
+            </div>
+            <div>
+              <label class="text-sm">담당 선생님</label>
+              <input id="vrTeacher" class="input w-full" placeholder="예: 강민채"/>
+            </div>
+            <div>
+              <label class="text-sm">교재</label>
+              <select id="vrBook" class="input w-full"></select>
+            </div>
+            <div>
+              <label class="text-sm">시작 범위</label>
+              <input id="vrStartRange" class="input w-full" placeholder="예: 1-3"/>
+            </div>
+            <div>
+              <label class="text-sm">단위(회차당 과 수)</label>
+              <input id="vrUnit" type="number" class="input w-full" value="3"/>
+            </div>
+            <div>
+              <label class="text-sm">겹치는 과 수</label>
+              <input id="vrOverlap" type="number" class="input w-full" value="1"/>
+            </div>
+            <div>
+              <label class="text-sm">겹치는 방식</label>
+              <select id="vrOverlapMode" class="input w-full">
+                <option value="end">끝 과 겹치기 (예: 1–3 → 3–5)</option>
+                <option value="front">앞에서 겹치기 (예: 1–3 → 2–4)</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-sm">시험 요일</label>
+              <div class="flex flex-wrap gap-2 mt-1">
+                <label class="pill"><input type="checkbox" class="vr-dow" value="1"/> 월</label>
+                <label class="pill"><input type="checkbox" class="vr-dow" value="2"/> 화</label>
+                <label class="pill"><input type="checkbox" class="vr-dow" value="3"/> 수</label>
+                <label class="pill"><input type="checkbox" class="vr-dow" value="4"/> 목</label>
+                <label class="pill"><input type="checkbox" class="vr-dow" value="5"/> 금</label>
+                <label class="pill"><input type="checkbox" class="vr-dow" value="6"/> 토</label>
+                <label class="pill"><input type="checkbox" class="vr-dow" value="0"/> 일</label>
+              </div>
+              <p class="text-xs text-slate-500 mt-1">예) 월/금 → 월(1), 금(5) 체크</p>
+            </div>
+            <div>
+              <label class="text-sm">시작 날짜</label>
+              <input id="vrStartDate" type="date" class="input w-full"/>
+            </div>
+            <div>
+              <label class="text-sm">마지막 과</label>
+              <input id="vrMaxUnit" type="number" class="input w-full" value="50"/>
+            </div>
+            <div>
+              <label class="text-sm">생성 회차(최대)</label>
+              <input id="vrOcc" type="number" class="input w-full" value="40"/>
+            </div>
+          </div>
+          <div class="mt-3 flex gap-2">
+            <button class="btn" onclick="vocabAddRule()">규칙 추가 & 일정 생성</button>
+            <button class="btn btn-secondary" onclick="vocabSeedDemo()">예시 규칙</button>
+          </div>
+        </div>
+
+        <div class="p-4 border rounded-xl">
+          <h3 class="font-semibold">등록된 규칙</h3>
+          <div id="vocabRulesList" class="mt-2 grid gap-2"></div>
+        </div>
+      </section>
+
+      <!-- BOOKS -->
+      <section id="vocabViewBooks" class="mt-4 space-y-4 hidden">
+        <div class="p-4 border rounded-xl">
+          <h3 class="font-semibold mb-2">교재 추가</h3>
+          <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div>
+              <label class="text-sm">교재명</label>
+              <input id="vbName" class="input w-full" placeholder="예: 고교기본"/>
+            </div>
+            <div>
+              <label class="text-sm">총 과 수</label>
+              <input id="vbCount" type="number" class="input w-full" placeholder="예: 60"/>
+            </div>
+            <div>
+              <label class="text-sm">라벨 접두어</label>
+              <input id="vbPrefix" class="input w-full" placeholder="예: Lesson"/>
+            </div>
+          </div>
+          <div class="mt-3">
+            <button class="btn" onclick="vocabAddBook()">교재 추가</button>
+          </div>
+        </div>
+
+        <div class="p-4 border rounded-xl">
+          <h3 class="font-semibold">교재 목록</h3>
+          <div id="vocabBooksList" class="mt-2 grid gap-2"></div>
+        </div>
+      </section>
+
+      <!-- HELP -->
+      <section id="vocabViewHelp" class="mt-4 hidden">
+        <div class="p-4 border rounded-xl text-sm text-slate-700 space-y-2">
+          <p><b>쓰는 법(아주 쉬움)</b></p>
+          <ol class="list-decimal pl-5 space-y-1">
+            <li>아래 <b>교재</b> 탭에서 교재명과 총 과 수를 등록합니다. (예: 고교기본, 60과)</li>
+            <li><b>학생&규칙</b> 탭에서 학생/선생/교재, 시작범위(예: 1-3), 단위(3), 겹침(1), <b>겹치는 방식</b>(끝/앞)과 <b>요일</b>(월/금) 선택 → <b>규칙 추가</b>.</li>
+            <li>상단 날짜 이동과 연동되어, 해당 날짜가 되면 <b>오늘</b> 탭에 자동으로 범위와 교재가 뜹니다.</li>
+            <li>알림(🔔)에는 <b>오늘 단어시험</b>도 잡히며, JSON <b>내보내기/불러오기</b> 지원.</li>
+          </ol>
+          <p class="text-xs text-slate-500">※ “끝 과 겹치기” = 1–3 → 3–5 → 5–7 … / “앞에서 겹치기” = 1–3 → 2–4 → 3–5 …</p>
+        </div>
+      </section>
+    </div>
+
+    <!-- 안내 -->
+    <div class="bg-amber-50 border-2 border-amber-200 rounded-xl p-4">
+      <h3 class="font-bold text-amber-800 mb-2">📢 사용 안내</h3>
+      <ul class="text-sm text-amber-700 space-y-1">
+        <li>• 매일 자동으로 <b>설정한 기본 체크리스트</b>가 생성됩니다.</li>
+        <li>• 항목의 <b>메모</b> 버튼으로 내용을 추가/수정하세요.</li>
+        <li>• 오른쪽 위 빨간 원: 미완료 체크리스트/오늘 재시험/미완료 타이핑/<b>오늘 단어시험</b> 알림</li>
+        <li>• 전날/다음날 버튼으로 과거 기록 확인</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+  <script>
+    /* ===================== 공통 유틸 ===================== */
+    function todayYMD() {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,'0');
+      const day = String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${day}`;
+    }
+    function ymdOf(dateObj) {
+      const y = dateObj.getFullYear();
+      const m = String(dateObj.getMonth()+1).padStart(2,'0');
+      const d = String(dateObj.getDate()).padStart(2,'0');
+      return `${y}-${m}-${d}`;
+    }
+    function escapeHTML(s='') {
+      return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function formatDateKorean(dateStr) {
+      const d = new Date(dateStr + 'T00:00:00');
+      const days = ['일','월','화','수','목','금','토'];
+      return `${d.getMonth()+1}월 ${d.getDate()}일 (${days[d.getDay()]})`;
+    }
+    const parseList = (text) =>
+      text.split(/[\n,]/).map(s=>s.trim()).filter(Boolean);
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    function addDays(dateStr, n){
+      const d = new Date(dateStr + 'T00:00:00');
+      d.setDate(d.getDate()+n);
+      return ymdOf(d);
+    }
+
+    /* ===================== 상태 ===================== */
+    let currentViewDate = todayYMD();
+
+    let defaultDaily = [];    // 설정 기본 체크리스트
+    let dailyTasks = {};      // {id: {label, checked, note}}
+    let koreanCoaching = {};
+    let hsMgmt = {};
+    let typingTasks = {};
+    let retestStudents = {};  // {id, name, subject, vocabBook, vocabRange, date, time}
+
+    // 클래스카드/누적단어
+    let ccState = { roster:{}, done:{} };
+    let vaState = { roster:{}, done:{} };
+
+    /* ========= 🌟 단어 스케줄러 상태(Firebase 저장) ========= */
+    const vocab = {
+      books: {},   // bookId -> {name, units:[...]}
+      rules: {},   // ruleId -> {student, teacher, bookId, startRange, unitSize, overlap, overlapMode, weekdays[], startDate, maxUnit, occurrences}
+      events: {}   // eventId -> {ruleId, student, teacher, bookId, date, rangeStart, rangeEnd, done}
+    };
+
+    /* ===================== Firebase ===================== */
+    const firebaseConfig = {
+      apiKey: "AIzaSyCEPzrduTPO9_07SV3-2prXgWI-zQRsUA8",
+      authDomain: "ganghanlucy.firebaseapp.com",
+      databaseURL: "https://ganghanlucy-default-rtdb.firebaseio.com",
+      projectId: "ganghanlucy",
+      storageBucket: "ganghanlucy.appspot.com",
+      messagingSenderId: "977455723921",
+      appId: "1:977455723921:web:244babb9aee6a4d1061630"
+    };
+    try { firebase.initializeApp(firebaseConfig); } catch (e) { console.error('Firebase 초기화 실패:', e); }
+    const db = firebase.database();
+
+    /* ===== 리스너 ref ===== */
+    let dailyRef=null, koreanRef=null, hsRef=null, typingRef=null, ccRef=null, vaRef=null, retestRef=null, settingsRef=null;
+    // 단어 스케줄러 ref
+    let vbRef=null, vrRef=null, veRef=null;
+
+    /* ===================== 날짜 표시 ===================== */
+    function updateDateDisplay() {
+      const date = new Date(currentViewDate + 'T00:00:00');
+      document.getElementById('currentDate').textContent = date.toLocaleDateString('ko-KR');
+      const today = todayYMD();
+      const infoEl = document.getElementById('dateInfo');
+      if (currentViewDate === today) {
+        infoEl.textContent = '오늘';
+        infoEl.className = 'text-sm font-bold text-green-600';
+      } else if (currentViewDate < today) {
+        infoEl.textContent = '과거 기록';
+        infoEl.className = 'text-sm font-bold text-orange-600';
+      } else {
+        infoEl.textContent = '미래';
+        infoEl.className = 'text-sm font-bold text-blue-600';
+      }
+      // 단어 스케줄러 날짜 라벨
+      const lbl = document.getElementById('vocabViewDateLabel');
+      if(lbl) lbl.textContent = `${formatDateKorean(currentViewDate)} (${currentViewDate})`;
+    }
+
+    /* ===================== 기본 시드 ===================== */
+    async function seedDefaultDaily(date) {
+      const ref = db.ref('daily/' + date);
+      const payload = {};
+      const baseLabels = defaultDaily.length ? defaultDaily : ['청소 상태 확인','단어 만들기','오다비 보내기','숙제 확인'];
+      baseLabels.forEach(label => {
+        const key = ref.push().key;
+        payload[key] = { label, checked: false, note: '' };
+      });
+      try { await ref.update(payload); } catch (err) { console.error('시드 데이터 생성 실패:', err); }
+    }
+
+    /* ===================== 설정 모달 ===================== */
+    function openSettings() {
+      document.getElementById('settingsBackdrop').style.display='block';
+      document.getElementById('settingsModal').style.display='block';
+      document.getElementById('defaultTasksInput').value = defaultDaily.length
+        ? defaultDaily.join('\n')
+        : '청소 상태 확인\n단어 만들기\n오다비 보내기\n숙제 확인';
+    }
+    function closeSettings() {
+      document.getElementById('settingsBackdrop').style.display='none';
+      document.getElementById('settingsModal').style.display='none';
+    }
+    function resetToRecommended() {
+      document.getElementById('defaultTasksInput').value = '청소 상태 확인\n단어 만들기\n오다비 보내기\n숙제 확인';
+    }
+    function saveDefaultTasks() {
+      const arr = parseList(document.getElementById('defaultTasksInput').value);
+      db.ref('settings/defaultDailyTasks').set(arr)
+        .then(()=>{ alert('저장되었습니다. 내일부터 새 목록으로 자동 생성됩니다.'); })
+        .catch(err=>{ console.error(err); alert('저장 중 오류가 발생했습니다.'); });
+      closeSettings();
+    }
+
+    /* ===================== 렌더러 (체크리스트 등) ===================== */
+    function renderDailyTasks() {
+      const listEl = document.getElementById('dailyTasksList');
+      const entries = Object.entries(dailyTasks);
+      const completed = entries.filter(([_, t]) => t.checked).length;
+      const total = entries.length;
+
+      document.getElementById('completedCount').textContent = `${completed}/${total || 0}`;
+      document.getElementById('progressBar').style.width = total > 0 ? ((completed / total) * 100) + '%' : '0%';
+
+      if (!entries.length) {
+        listEl.innerHTML = `<div class="text-center text-gray-500 py-4">항목이 없습니다.</div>`;
+      } else {
+        listEl.innerHTML = entries.map(([id, task]) => {
+          const checkedCls = task.checked ? 'bg-green-50 border-2 border-green-500' : 'bg-gray-50 border-2 border-gray-200 hover:border-indigo-300';
+          const labelCls = task.checked ? 'text-gray-500 line-through' : 'text-gray-800 font-medium';
+          const note = task.note || '';
+          return `
+            <div class="w-full p-4 rounded-xl transition-all ${checkedCls}">
+              <div class="flex items-center gap-3">
+                <button title="완료 토글" onclick="toggleTask('${id}')" class="w-7 h-7 rounded-full flex items-center justify-center ${task.checked ? 'bg-green-500 text-white' : 'bg-white border-2 border-gray-300'}">${task.checked ? '✓' : ''}</button>
+                <span class="flex-1 text-left text-lg ${labelCls}">${escapeHTML(task.label)}</span>
+                <button onclick="openNoteEditor('${id}')" class="px-2 py-1 text-sm rounded bg-yellow-100 border border-yellow-300 hover:bg-yellow-200">메모</button>
+                <button onclick="deleteTask('${id}')" class="text-red-500 hover:text-red-700 text-xl" aria-label="삭제">✕</button>
+              </div>
+              ${note ? `<div class="mt-2 text-sm text-gray-700 bg-white border rounded p-2">${escapeHTML(note)}</div>` : ``}
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    function renderKorean() {
+      const entries = Object.entries(koreanCoaching);
+      document.getElementById('koreanCount').textContent = entries.length;
+      document.getElementById('koreanList').innerHTML = entries.map(([id, s]) => `
+        <div class="bg-indigo-50 rounded-lg p-4 flex justify-between items-center">
+          <div class="flex-1">
+            <div class="font-bold text-lg">${escapeHTML(s.name)}</div>
+            <div class="text-sm text-gray-600">점수: ${escapeHTML(s.score||'')} | ${escapeHTML(s.attendance||'')} | 틀린 문제: ${escapeHTML(s.wrong||'')}</div>
+          </div>
+          <button onclick="deleteKorean('${id}')" class="text-red-500 hover:text-red-700 ml-4 text-xl">✕</button>
+        </div>
+      `).join('') || `<div class="text-gray-500">등록된 학생이 없습니다.</div>`;
+    }
+
+    function renderHsMgmt() {
+      const entries = Object.entries(hsMgmt);
+      document.getElementById('hsMgmtCount').textContent = entries.length;
+      document.getElementById('hsMgmtList').innerHTML = entries.map(([id, s]) => `
+        <div class="bg-purple-50 rounded-lg p-4 flex justify-between items-center">
+          <div class="flex-1">
+            <div class="font-bold text-lg">${escapeHTML(s.name)} <span class="text-sm text-purple-700">(${escapeHTML(s.subject)})</span></div>
+            <div class="text-sm text-gray-600">점수: ${escapeHTML(s.score||'')} | 범위: ${escapeHTML(s.range||'')}</div>
+          </div>
+          <button onclick="deleteHsMgmt('${id}')" class="text-red-500 hover:text-red-700 ml-4 text-xl">✕</button>
+        </div>
+      `).join('') || `<div class="text-gray-500">등록된 학생이 없습니다.</div>`;
+    }
+
+    function renderTyping() {
+      const entries = Object.entries(typingTasks);
+      document.getElementById('typingCount').textContent = entries.length;
+      document.getElementById('typingList').innerHTML = entries.map(([id, t]) => `
+        <div class="bg-green-50 rounded-lg p-4 flex justify-between items-center">
+          <div class="flex-1">
+            <div class="font-bold ${t.completed ? 'line-through text-gray-500':''}">${escapeHTML(t.task)}</div>
+            <div class="text-sm text-gray-600">완료: ${escapeHTML(t.progress||'')}</div>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="toggleTypingComplete('${id}')"
+                    class="px-3 py-1 rounded ${t.completed ? 'bg-gray-300' : 'bg-green-500 text-white'} text-sm">
+              ${t.completed ? '재개' : '완료'}
+            </button>
+            <button onclick="deleteTyping('${id}')" class="text-red-500 hover:text-red-700 text-xl">✕</button>
+          </div>
+        </div>
+      `).join('') || `<div class="text-gray-500">등록된 업무가 없습니다.</div>`;
+    }
+
+    function renderRetest() {
+      const today = todayYMD();
+      const all = Object.values(retestStudents || {});
+      const todayRetests = all.filter(s => s.date === today);
+      const upcomingRetests = all.filter(s => s.date > today).sort((a,b)=>a.date.localeCompare(b.date));
+      const pastRetests = all.filter(s => s.date < today).sort((a,b)=>b.date.localeCompare(a.date));
+
+      document.getElementById('retestCount').textContent = all.length;
+      const badge = document.getElementById('todayRetestBadge');
+      badge.style.display = todayRetests.length ? 'inline-block' : 'none';
+      badge.textContent = `오늘 ${todayRetests.length}명`;
+
+      const card = (s, tone='') => `
+        <div class="${tone==='today'?'bg-red-100 border-2 border-red-400':'bg-orange-50'} rounded-lg p-4 flex justify-between items-center">
+          <div class="flex-1">
+            <div class="font-bold text-lg ${tone==='today'?'text-red-800':''}">${escapeHTML(s.name)}</div>
+            <div class="text-sm ${tone==='today'?'text-red-700':'text-gray-600'}">
+              ${escapeHTML(s.subject||'')}
+              ${s.vocabBook ? ` | 단어장: ${escapeHTML(s.vocabBook)}` : ``}
+              ${s.vocabRange ? ` | 범위: ${escapeHTML(s.vocabRange)}` : ``}
+              | ${formatDateKorean(s.date)} ${s.time? `| ${escapeHTML(s.time)}`:''}
+            </div>
+          </div>
+          <button onclick="deleteRetest('${s.id}')" class="text-red-600 hover:text-red-800 ml-4 text-xl">✕</button>
+        </div>`;
+
+      let html = '';
+      if (todayRetests.length) {
+        html += `<div class="mb-4"><h3 class="font-bold text-red-600 mb-2">🔴 오늘 재시험</h3>
+          <div class="space-y-2">${todayRetests.map(s => card(s,'today')).join('')}</div></div>`;
+      }
+      if (upcomingRetests.length) {
+        html += `<div class="mb-4"><h3 class="font-bold text-orange-600 mb-2">📅 예정된 재시험</h3>
+          <div class="space-y-2">${upcomingRetests.map(s => card(s)).join('')}</div></div>`;
+      }
+      if (pastRetests.length) {
+        html += `<div><h3 class="font-bold text-gray-500 mb-2">✅ 완료된 재시험</h3>
+          <div class="space-y-2">
+            ${pastRetests.map(s => `
+              <div class="bg-gray-100 rounded-lg p-4 flex justify-between items-center opacity-70">
+                <div class="flex-1">
+                  <div class="font-bold">${escapeHTML(s.name)}</div>
+                  <div class="text-sm text-gray-600">
+                    ${escapeHTML(s.subject||'')}
+                    ${s.vocabBook ? ` | 단어장: ${escapeHTML(s.vocabBook)}` : ``}
+                    ${s.vocabRange ? ` | 범위: ${escapeHTML(s.vocabRange)}` : ``}
+                    | ${formatDateKorean(s.date)} ${s.time? `| ${escapeHTML(s.time)}`:''}
+                  </div>
+                </div>
+                <button onclick="deleteRetest('${s.id}')" class="text-red-500 hover:text-red-700 ml-4 text-xl">✕</button>
+              </div>`).join('')}
+          </div></div>`;
+      }
+      document.getElementById('retestList').innerHTML = html || `<div class="text-gray-500">재시험 일정이 없습니다.</div>`;
+    }
+
+    function renderNamePills(containerId, names) {
+      const el = document.getElementById(containerId);
+      el.innerHTML = names.length
+        ? names.map(n => `<span class="inline-block px-2 py-1 rounded-full text-sm bg-gray-100 border">${escapeHTML(n)}</span>`).join(' ')
+        : `<div class="text-gray-500">없음</div>`;
+    }
+    function diffPending(rosterMap, doneMap) {
+      const all = Object.keys(rosterMap||{});
+      return all.filter(n => !doneMap || !doneMap[n]);
+    }
+    function renderClasscard() {
+      const roster = Object.keys(ccState.roster||{});
+      const pending = diffPending(ccState.roster, ccState.done);
+      document.getElementById('ccRosterCount').textContent = roster.length;
+      document.getElementById('ccPendingCount').textContent = pending.length;
+      renderNamePills('ccRosterList', roster);
+      renderNamePills('ccPendingList', pending);
+    }
+    function renderVocabAccum() {
+      const roster = Object.keys(vaState.roster||{});
+      const pending = diffPending(vaState.roster, vaState.done);
+      document.getElementById('vaRosterCount').textContent = roster.length;
+      document.getElementById('vaPendingCount').textContent = pending.length;
+      renderNamePills('vaRosterList', roster);
+      renderNamePills('vaPendingList', pending);
+    }
+
+    /* ===================== 알림 (단어시험 포함 확장) ===================== */
+    function updateNotificationPanel() {
+      const today = todayYMD();
+      const incompleteTasks = Object.values(dailyTasks).filter(t => !t.checked).map(t => `• ${escapeHTML(t.label)}`);
+      const todayRetests = Object.values(retestStudents||{}).filter(s => s.date === today).map(s => `• ${escapeHTML(s.name)} (${escapeHTML(s.subject||'')}${s.time? ' '+escapeHTML(s.time):''})`);
+      const incompleteTyping = Object.values(typingTasks).filter(t => !t.completed).map(t => `• ${escapeHTML(t.task)}`);
+      const todayVocabEvents = Object.values(vocab.events||{}).filter(e => e.date === today).map(e => `• ${escapeHTML(e.student)} (${e.rangeStart}–${e.rangeEnd})`);
+
+      const sections = [];
+      if (incompleteTasks.length) sections.push(`<h4 class="font-semibold mb-1">미완료 체크리스트</h4><div class="mb-2">${incompleteTasks.join('<br>')}</div>`);
+      if (todayRetests.length) sections.push(`<h4 class="font-semibold mb-1">오늘 재시험</h4><div class="mb-2">${todayRetests.join('<br>')}</div>`);
+      if (todayVocabEvents.length) sections.push(`<h4 class="font-semibold mb-1">오늘 단어시험</h4><div class="mb-2">${todayVocabEvents.join('<br>')}</div>`);
+      if (incompleteTyping.length) sections.push(`<h4 class="font-semibold mb-1">타이핑 업무</h4><div>${incompleteTyping.join('<br>')}</div>`);
+
+      document.getElementById('notificationContent').innerHTML = sections.join('<hr class="my-3">') || '알림 없음';
+    }
+    function checkNotifications() {
+      const today = todayYMD();
+      if (currentViewDate !== today) {
+        document.getElementById('notificationBadge').style.display = 'none';
+        return;
+      }
+      const incompleteTasks = Object.values(dailyTasks).filter(t => !t.checked).length;
+      const todayRetests = Object.values(retestStudents||{}).filter(s => s.date === today).length;
+      const incompleteTyping = Object.values(typingTasks).filter(t => !t.completed).length;
+      const todayVocabEvents = Object.values(vocab.events||{}).filter(e => e.date === today).length;
+
+      const total = incompleteTasks + todayRetests + incompleteTyping + todayVocabEvents;
+
+      if (total > 0) {
+        document.getElementById('notificationBadge').style.display = 'flex';
+        document.getElementById('notificationCount').textContent = total;
+      } else {
+        document.getElementById('notificationBadge').style.display = 'none';
+      }
+      updateNotificationPanel();
+    }
+
+    /* ===================== CRUD (체크리스트 등) ===================== */
+    // daily
+    function addNewTask() {
+      const input = document.getElementById('newTaskInput');
+      const noteInput = document.getElementById('newTaskNoteInput');
+      const label = input.value.trim();
+      const note = (noteInput.value||'').trim();
+      if (!label) return;
+      const ref = db.ref('daily/' + currentViewDate);
+      const key = ref.push().key;
+      ref.child(key).set({ label, checked: false, note }).catch(err => console.error('태스크 추가 실패:', err));
+      input.value = '';
+      noteInput.value = '';
+    }
+    function toggleTask(id) {
+      const cur = dailyTasks[id]; if (!cur) return;
+      db.ref(`daily/${currentViewDate}/${id}/checked`).set(!cur.checked).catch(err => console.error('태스크 토글 실패:', err));
+    }
+    function deleteTask(id) {
+      db.ref(`daily/${currentViewDate}/${id}`).remove().catch(err => console.error('태스크 삭제 실패:', err));
+    }
+    function openNoteEditor(id) {
+      const cur = dailyTasks[id]; if (!cur) return;
+      const newNote = prompt('메모/내용을 입력하세요:', cur.note || '');
+      if (newNote === null) return;
+      db.ref(`daily/${currentViewDate}/${id}/note`).set(newNote).catch(err => console.error('메모 저장 실패:', err));
+    }
+
+    // korean
+    function addKorean() {
+      const name = document.getElementById('koreanName').value.trim();
+      const score = document.getElementById('koreanScore').value.trim();
+      const attendance = document.getElementById('koreanAttendance').value;
+      const wrong = document.getElementById('koreanWrong').value.trim();
+      if (!name) return;
+      const ref = db.ref('korean/' + currentViewDate);
+      const key = ref.push().key;
+      ref.child(key).set({ name, score, attendance, wrong }).catch(err => console.error('국어 학생 추가 실패:', err));
+      document.getElementById('koreanName').value = '';
+      document.getElementById('koreanScore').value = '';
+      document.getElementById('koreanWrong').value = '';
+    }
+    function deleteKorean(id) {
+      db.ref(`korean/${currentViewDate}/${id}`).remove().catch(err => console.error('국어 학생 삭제 실패:', err));
+    }
+
+    // 역사/과학
+    function addHsMgmt() {
+      const subject = document.getElementById('hsSubject').value;
+      const name = document.getElementById('hsName').value.trim();
+      const score = document.getElementById('hsScore').value.trim();
+      const range = document.getElementById('hsRange').value.trim();
+      if (!name) return;
+      const ref = db.ref('hsMgmt/' + currentViewDate);
+      const key = ref.push().key;
+      ref.child(key).set({ subject, name, score, range }).catch(err => console.error('역사/과학 추가 실패:', err));
+      document.getElementById('hsName').value = '';
+      document.getElementById('hsScore').value = '';
+      document.getElementById('hsRange').value = '';
+    }
+    function deleteHsMgmt(id) {
+      db.ref(`hsMgmt/${currentViewDate}/${id}`).remove().catch(err => console.error('역사/과학 삭제 실패:', err));
+    }
+
+    // typing
+    function addTyping() {
+      const task = document.getElementById('typingTask').value.trim();
+      const progress = document.getElementById('typingProgress').value.trim();
+      if (!task) return;
+      const ref = db.ref('typing/' + currentViewDate);
+      const key = ref.push().key;
+      ref.child(key).set({ task, progress, completed: false }).catch(err => console.error('타이핑 업무 추가 실패:', err));
+      document.getElementById('typingTask').value = '';
+      document.getElementById('typingProgress').value = '';
+    }
+    function toggleTypingComplete(id) {
+      const cur = typingTasks[id]; if (!cur) return;
+      db.ref(`typing/${currentViewDate}/${id}/completed`).set(!cur.completed).catch(err => console.error('타이핑 완료 토글 실패:', err));
+    }
+    function deleteTyping(id) {
+      db.ref(`typing/${currentViewDate}/${id}`).remove().catch(err => console.error('타이핑 삭제 실패:', err));
+    }
+
+    // 재시험(전역)
+    function addRetest() {
+      const name = document.getElementById('retestName').value.trim();
+      const subject = document.getElementById('retestSubject').value.trim();
+      const vocabBook = document.getElementById('retestVocabBook').value.trim();
+      const vocabRange = document.getElementById('retestVocabRange').value.trim();
+      const date = document.getElementById('retestDate').value;
+      const time = document.getElementById('retestTime').value;
+      if (!name || !date) return;
+      const ref = db.ref('retest');
+      const key = ref.push().key;
+      const item = { id: key, name, subject, vocabBook, vocabRange, date, time };
+      ref.child(key).set(item).catch(err => console.error('재시험 추가 실패:', err));
+      document.getElementById('retestName').value = '';
+      document.getElementById('retestSubject').value = '';
+      document.getElementById('retestVocabBook').value = '';
+      document.getElementById('retestVocabRange').value = '';
+      document.getElementById('retestDate').value = '';
+      document.getElementById('retestTime').value = '';
+    }
+    function deleteRetest(id) {
+      db.ref(`retest/${id}`).remove().catch(err => console.error('재시험 삭제 실패:', err));
+    }
+
+    // 클래스카드
+    function ccApplyRoster() {
+      const names = parseList(document.getElementById('ccRosterInput').value);
+      const map = {}; names.forEach(n => map[n]=true);
+      db.ref(`classcard/${currentViewDate}/roster`).set(map);
+    }
+    function ccApplyDone() {
+      const names = parseList(document.getElementById('ccDoneInput').value);
+      const map = {}; names.forEach(n => map[n]=true);
+      db.ref(`classcard/${currentViewDate}/done`).set(map);
+    }
+    function ccClearAll() {
+      db.ref(`classcard/${currentViewDate}`).set({ roster:{}, done:{} });
+    }
+
+    // 누적 단어
+    function vaApplyRoster() {
+      const names = parseList(document.getElementById('vaRosterInput').value);
+      const map = {}; names.forEach(n => map[n]=true);
+      db.ref(`vocabAccum/${currentViewDate}/roster`).set(map);
+    }
+    function vaApplyDone() {
+      const names = parseList(document.getElementById('vaDoneInput').value);
+      const map = {}; names.forEach(n => map[n]=true);
+      db.ref(`vocabAccum/${currentViewDate}/done`).set(map);
+    }
+    function vaClearAll() {
+      db.ref(`vocabAccum/${currentViewDate}`).set({ roster:{}, done:{} });
+    }
+
+    /* ===================== 리스너 관리 ===================== */
+    function detachListeners() {
+      try { if (dailyRef)  { dailyRef.off();  dailyRef=null; } } catch(e){}
+      try { if (koreanRef) { koreanRef.off(); koreanRef=null; } } catch(e){}
+      try { if (hsRef)     { hsRef.off();     hsRef=null; } } catch(e){}
+      try { if (typingRef) { typingRef.off(); typingRef=null; } } catch(e){}
+      try { if (ccRef)     { ccRef.off();     ccRef=null; } } catch(e){}
+      try { if (vaRef)     { vaRef.off();     vaRef=null; } } catch(e){}
+      // retestRef, settingsRef, vocab refs는 전역 유지
+    }
+
+    function attachListenersForDate() {
+      // daily
+      dailyRef = db.ref('daily/' + currentViewDate);
+      dailyRef.on('value', async snap => {
+        if (!snap.exists()) {
+          await seedDefaultDaily(currentViewDate);
+          dailyTasks = {};
+        } else {
+          dailyTasks = snap.val() || {};
+        }
+        renderDailyTasks(); checkNotifications();
+      }, err => {
+        console.error('일일 태스크 로드 실패:', err);
+        dailyTasks = {};
+        renderDailyTasks();
+      });
+
+      // korean
+      koreanRef = db.ref('korean/' + currentViewDate);
+      koreanRef.on('value', snap => {
+        koreanCoaching = snap.val() || {};
+        renderKorean(); checkNotifications();
+      }, err => {
+        console.error('국어 데이터 로드 실패:', err);
+        koreanCoaching = {};
+        renderKorean();
+      });
+
+      // 역사/과학 관리반
+      hsRef = db.ref('hsMgmt/' + currentViewDate);
+      hsRef.on('value', snap => {
+        hsMgmt = snap.val() || {};
+        renderHsMgmt(); checkNotifications();
+      }, err => {
+        console.error('역사/과학 로드 실패:', err);
+        hsMgmt = {};
+        renderHsMgmt();
+      });
+
+      // typing
+      typingRef = db.ref('typing/' + currentViewDate);
+      typingRef.on('value', snap => {
+        typingTasks = snap.val() || {};
+        renderTyping(); checkNotifications();
+      }, err => {
+        console.error('타이핑 데이터 로드 실패:', err);
+        typingTasks = {};
+        renderTyping();
+      });
+
+      // 클래스카드
+      ccRef = db.ref('classcard/' + currentViewDate);
+      ccRef.on('value', snap => {
+        const val = snap.val();
+        ccState = val ? { roster: val.roster || {}, done: val.done || {} } : { roster:{}, done:{} };
+        renderClasscard(); checkNotifications();
+      }, err => {
+        console.error('클래스카드 로드 실패:', err);
+        ccState = { roster:{}, done:{} };
+        renderClasscard();
+      });
+
+      // 누적단어
+      vaRef = db.ref('vocabAccum/' + currentViewDate);
+      vaRef.on('value', snap => {
+        const val = snap.val();
+        vaState = val ? { roster: val.roster || {}, done: val.done || {} } : { roster:{}, done:{} };
+        renderVocabAccum(); checkNotifications();
+      }, err => {
+        console.error('누적단어 로드 실패:', err);
+        vaState = { roster:{}, done:{} };
+        renderVocabAccum();
+      });
+
+      // 🌟 단어 스케줄러: 이벤트는 날짜 기반 렌더에 사용
+      // (events는 전역 리스너에서 이미 가져오므로 여기서는 렌더만)
+      vocabRenderAll();
+    }
+
+    function attachGlobalListenersOnce() {
+      if (!retestRef) {
+        retestRef = db.ref('retest');
+        retestRef.on('value', snap => {
+          retestStudents = snap.val() || {};
+          renderRetest(); checkNotifications();
+        }, err => {
+          console.error('재시험 데이터 로드 실패:', err);
+          retestStudents = {};
+          renderRetest();
+        });
+      }
+      if (!settingsRef) {
+        settingsRef = db.ref('settings/defaultDailyTasks');
+        settingsRef.on('value', snap => {
+          defaultDaily = (snap.val() || []).filter(Boolean);
+        }, err => {
+          console.error('설정 로드 실패:', err);
+          defaultDaily = [];
+        });
+      }
+      // 🌟 단어 스케줄러 전역 리스너
+      if(!vbRef){
+        vbRef = db.ref('vocab/books');
+        vbRef.on('value', snap=>{
+          vocab.books = snap.val() || {};
+          vocabRenderBooks(); vocabPopulateBookSelect(); vocabRenderToday(); vocabRenderUpcoming();
+        });
+      }
+      if(!vrRef){
+        vrRef = db.ref('vocab/rules');
+        vrRef.on('value', snap=>{
+          vocab.rules = snap.val() || {};
+          vocabRenderRules();
+        });
+      }
+      if(!veRef){
+        veRef = db.ref('vocab/events');
+        veRef.on('value', snap=>{
+          vocab.events = snap.val() || {};
+          vocabRenderToday(); vocabRenderUpcoming(); checkNotifications();
+        });
+      }
+    }
+
+    /* ===================== 날짜 이동/초기화 ===================== */
+    function changeDate(dir) {
+      const d = new Date(currentViewDate + 'T00:00:00');
+      d.setDate(d.getDate() + dir);
+      currentViewDate = ymdOf(d);
+      updateDateDisplay();
+      detachListeners();
+      attachListenersForDate();
+    }
+    function goToToday() {
+      currentViewDate = todayYMD();
+      updateDateDisplay();
+      detachListeners();
+      attachListenersForDate();
+    }
+    function toggleNotification() {
+      const panel = document.getElementById('notificationPanel');
+      panel.style.display = (panel.style.display === 'none' || !panel.style.display) ? 'block' : 'none';
+    }
+
+    /* ===========================================================
+       🌟 단어시험 스케줄러 로직 (Firebase /vocab/*)
+       =========================================================== */
+    // ---- 탭 전환
+    function vocabSwitchTab(name){
+      const tabs = ['today','upcoming','rules','books','help'];
+      tabs.forEach(t=>{
+        document.getElementById('vocabView'+t.charAt(0).toUpperCase()+t.slice(1)).classList.toggle('hidden', t!==name);
+        document.getElementById('vocabTab'+t.charAt(0).toUpperCase()+t.slice(1)).classList.toggle('btn', t===name);
+        document.getElementById('vocabTab'+t.charAt(0).toUpperCase()+t.slice(1)).classList.toggle('btn-secondary', t!==name);
+      });
+      if(name==='today') vocabRenderToday();
+      if(name==='upcoming') vocabRenderUpcoming();
+      if(name==='rules') vocabRenderRules();
+      if(name==='books') { vocabRenderBooks(); vocabPopulateBookSelect(); }
+    }
+
+    // ---- 공통 파서
+    function vocabParseRange(txt){
+      const m = (txt||'').match(/^\s*(\d+)\s*-\s*(\d+)\s*$/);
+      if(!m) return null;
+      return {start: parseInt(m[1],10), end: parseInt(m[2],10)};
+    }
+    function vocabNearestOnOrAfter(ymd, weekdays){
+      const d = new Date(ymd+'T00:00:00');
+      const dw = d.getDay();
+      if(weekdays.includes(dw)) return ymd;
+      let best = ymd, minDiff=7;
+      for(const w of weekdays){
+        let diff = (w - dw + 7) % 7; if(diff===0) diff=7;
+        if(diff<minDiff){ minDiff=diff; best = addDays(ymd, diff); }
+      }
+      return best;
+    }
+    function vocabNextByWeekdays(ymd, weekdays){
+      const d = new Date(ymd+'T00:00:00');
+      const dw = d.getDay();
+      const sorted = weekdays.slice().sort((a,b)=>a-b);
+      let idx = sorted.indexOf(dw);
+      if(idx===-1){
+        return vocabNearestOnOrAfter(addDays(ymd,1), weekdays);
+      }
+      const next = sorted[(idx+1)%sorted.length];
+      const diff = (next - dw + 7) % 7 || 7;
+      return addDays(ymd, diff);
+    }
+    function vocabNextDates(startISO, weekdays, count){
+      const out=[];
+      let ymd = vocabNearestOnOrAfter(startISO, weekdays);
+      while(out.length<count){
+        out.push(ymd);
+        ymd = vocabNextByWeekdays(ymd, weekdays);
+      }
+      return out;
+    }
+
+    // ---- BOOKS
+    function vocabPopulateBookSelect(){
+      const sel = document.getElementById('vrBook');
+      if(!sel) return;
+      sel.innerHTML='';
+      Object.entries(vocab.books).forEach(([id,b])=>{
+        const opt = document.createElement('option');
+        opt.value = id; opt.textContent = b.name;
+        sel.appendChild(opt);
+      });
+    }
+    function vocabRenderBooks(){
+      const wrap = document.getElementById('vocabBooksList');
+      if(!wrap) return;
+      wrap.innerHTML='';
+      const entries = Object.entries(vocab.books);
+      if(entries.length===0){
+        wrap.innerHTML = `<div class="text-slate-500">등록된 교재가 없습니다. 위에서 추가하세요.</div>`;
+        return;
+      }
+      entries.forEach(([id,b])=>{
+        const unitPreview = (b.units||[]).slice(0,8).join(', ') + ((b.units||[]).length>8 ? '…':'');
+        const el = document.createElement('div');
+        el.className='p-3 border rounded bg-white flex items-center justify-between gap-2';
+        el.innerHTML = `
+          <div>
+            <div class="font-medium">${escapeHTML(b.name)}</div>
+            <div class="text-xs text-slate-500">총 ${(b.units||[]).length}과 · 예시: ${escapeHTML(unitPreview)}</div>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-secondary" onclick="vocabDeleteBook('${id}')">삭제</button>
+          </div>
+        `;
+        wrap.appendChild(el);
+      });
+    }
+    function vocabAddBook(){
+      const name = document.getElementById('vbName').value.trim();
+      const count = parseInt(document.getElementById('vbCount').value,10);
+      const prefix = (document.getElementById('vbPrefix').value.trim() || 'Unit');
+      if(!name || !count || count<1){ alert('교재명과 총 과 수를 올바르게 입력하세요.'); return; }
+      const units = Array.from({length:count},(_,i)=>`${prefix} ${i+1}`);
+      const ref = db.ref('vocab/books');
+      const id = ref.push().key;
+      ref.child(id).set({name, units}).then(()=>{
+        document.getElementById('vbName').value='';
+        document.getElementById('vbCount').value='';
+        document.getElementById('vbPrefix').value='';
+      });
+    }
+    function vocabDeleteBook(id){
+      if(!confirm('이 교재를 삭제할까요? (규칙은 남습니다)')) return;
+      db.ref(`vocab/books/${id}`).remove();
+    }
+
+    // ---- RULES & EVENTS
+    function vocabRenderRules(){
+      const box = document.getElementById('vocabRulesList');
+      if(!box) return;
+      box.innerHTML='';
+      const entries = Object.entries(vocab.rules);
+      if(entries.length===0){
+        box.innerHTML = `<div class="text-slate-500">규칙이 없습니다. 위에서 추가하세요.</div>`;
+        return;
+      }
+      entries.forEach(([rid,r])=>{
+        const book = vocab.books[r.bookId];
+        const dowText = (r.weekdays||[]).map(dw=>['일','월','화','수','목','금','토'][dw]).join(', ');
+        const modeText = r.overlapMode==='front' ? '앞에서 겹치기' : '끝 과 겹치기';
+        const el = document.createElement('div');
+        el.className='p-3 border rounded bg-white flex items-center justify-between gap-2';
+        el.innerHTML = `
+          <div>
+            <div class="font-medium">${escapeHTML(r.student)} <span class="text-slate-400">(${escapeHTML(r.teacher)})</span></div>
+            <div class="text-xs text-slate-500">
+              교재: ${book?escapeHTML(book.name):'?'} · 시작: ${escapeHTML(r.startRange)} · 단위:${r.unitSize}
+              · 겹침:${r.overlap} (${modeText}) · 요일:${escapeHTML(dowText)} · 시작일:${escapeHTML(r.startDate)}
+              · 마지막 과:${r.maxUnit} · 생성:${r.occurrences}회
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-secondary" onclick="vocabRegenForRule('${rid}', true)">일정 재생성</button>
+            <button class="btn btn-secondary" onclick="vocabDeleteRule('${rid}')">규칙 삭제</button>
+          </div>
+        `;
+        box.appendChild(el);
+      });
+    }
+    function vocabAddRule(){
+      const name = document.getElementById('vrName').value.trim();
+      const teacher = document.getElementById('vrTeacher').value.trim();
+      const bookId = document.getElementById('vrBook').value;
+      const startRangeTxt = document.getElementById('vrStartRange').value.trim();
+      const unitSize = parseInt(document.getElementById('vrUnit').value,10);
+      const overlap = Math.max(0, parseInt(document.getElementById('vrOverlap').value,10));
+      const overlapMode = document.getElementById('vrOverlapMode').value; // 'end' | 'front'
+      const dows = Array.from(document.querySelectorAll('.vr-dow:checked')).map(x=>parseInt(x.value,10)).sort((a,b)=>a-b);
+      const startDate = document.getElementById('vrStartDate').value || todayYMD();
+      const maxUnit = parseInt(document.getElementById('vrMaxUnit').value,10) || undefined;
+      const occurrences = parseInt(document.getElementById('vrOcc').value,10) || 40;
+
+      if(!name || !teacher || !bookId || !startRangeTxt || !unitSize || dows.length===0){
+        alert('학생/선생님/교재/시작범위/단위/요일을 확인하세요.'); return;
+      }
+      const r0 = vocabParseRange(startRangeTxt);
+      if(!r0){ alert('시작 범위는 "1-3" 형태로 입력하세요.'); return; }
+
+      const ref = db.ref('vocab/rules');
+      const id = ref.push().key;
+      const rule = { student:name, teacher, bookId, startRange:startRangeTxt, unitSize, overlap, overlapMode, weekdays:dows, startDate, maxUnit:(maxUnit || r0.end), occurrences };
+      ref.child(id).set(rule).then(()=>{
+        // 일정 생성
+        vocabRegenForRule(id, true);
+        document.getElementById('vrStartRange').value='';
+      });
+    }
+    function vocabDeleteRule(id){
+      if(!confirm('이 규칙을 삭제할까요? (이미 생성된 이벤트는 유지됩니다)')) return;
+      db.ref(`vocab/rules/${id}`).remove();
+    }
+
+    function vocabRegenForRule(ruleId, clearExisting){
+      const r = (vocab.rules||{})[ruleId];
+      if(!r) return;
+      const book = vocab.books[r.bookId];
+      const unitsCount = book ? (book.units||[]).length : (r.maxUnit||9999);
+      const dates = vocabNextDates(r.startDate, r.weekdays||[], r.occurrences||40);
+
+      let cur = vocabParseRange(r.startRange);
+      if(!cur) return;
+      cur.start = clamp(cur.start,1,unitsCount);
+      cur.end   = clamp(cur.end,  1,unitsCount);
+
+      const evRef = db.ref('vocab/events');
+      // 기존 이벤트 제거(해당 규칙만)
+      if(clearExisting){
+        const all = Object.entries(vocab.events||{});
+        const updates = {};
+        all.forEach(([eid, ev])=>{
+          if(ev.ruleId===ruleId) updates[eid] = null;
+        });
+        evRef.update(updates);
+      }
+
+      // 새 이벤트 생성
+      let batch = {};
+      for(let i=0;i<dates.length;i++){
+        if(cur.start > unitsCount) break;
+        if(cur.end > unitsCount) cur.end = unitsCount;
+
+        const eid = evRef.push().key;
+        batch[eid] = {
+          id: eid, ruleId: ruleId, student: r.student, teacher: r.teacher, bookId: r.bookId,
+          date: dates[i], rangeStart: cur.start, rangeEnd: cur.end, done: false
+        };
+
+        // 다음 범위
+        let nextStart;
+        if(r.overlapMode==='front'){
+          nextStart = cur.start + (r.overlap||0);
+        }else{
+          nextStart = cur.end - Math.max(0,(r.overlap||0)-1);
+        }
+        nextStart = clamp(nextStart,1,unitsCount);
+        let nextEnd = nextStart + (r.unitSize-1);
+        nextEnd = clamp(nextEnd,1,unitsCount);
+        cur = {start: nextStart, end: nextEnd};
+
+        if(cur.start > r.maxUnit) break;
+        if(cur.end > r.maxUnit) cur.end = r.maxUnit;
+      }
+      if(Object.keys(batch).length){
+        evRef.update(batch);
+      }
+    }
+
+    // ---- TODAY / UPCOMING
+    function vocabRenderToday(){
+      const listEl = document.getElementById('vocabTodayList');
+      const emptyEl = document.getElementById('vocabTodayEmpty');
+      if(!listEl) return;
+
+      const list = Object.values(vocab.events||{}).filter(e=>e.date===currentViewDate)
+        .sort((a,b)=> a.student.localeCompare(b.student));
+      listEl.innerHTML = '';
+      if(list.length===0){ emptyEl.style.display='block'; return; }
+      emptyEl.style.display='none';
+
+      list.forEach(ev=>{
+        const book = vocab.books[ev.bookId];
+        const names = [];
+        if(book && book.units){
+          for(let i=ev.rangeStart;i<=ev.rangeEnd;i++){
+            if(book.units[i-1]) names.push(book.units[i-1]);
+          }
+        }
+        const row = document.createElement('div');
+        row.className='p-3 border rounded bg-white flex items-center justify-between gap-3';
+        row.innerHTML = `
+          <div>
+            <div class="font-medium">${escapeHTML(ev.student)} <span class="text-slate-400">(${escapeHTML(ev.teacher)})</span></div>
+            <div class="text-sm text-slate-600">교재: ${book?escapeHTML(book.name):'?'} · 범위: ${ev.rangeStart}–${ev.rangeEnd}</div>
+            <div class="text-xs text-slate-500">${escapeHTML(names.join(' · '))}</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="text-sm"><input type="checkbox" ${ev.done?'checked':''} onchange="vocabToggleDone('${ev.id}', this.checked)"/> 완료</label>
+            <button class="btn btn-secondary" onclick="vocabDeleteEvent('${ev.id}')">삭제</button>
+          </div>
+        `;
+        listEl.appendChild(row);
+      });
+    }
+    function vocabRenderUpcoming(){
+      const box = document.getElementById('vocabUpcomingList');
+      if(!box) return;
+      box.innerHTML='';
+
+      const today = todayYMD();
+      const until = addDays(today, 14);
+      const arr = Object.values(vocab.events||{}).filter(ev=> ev.date>=today && ev.date<=until)
+        .sort((a,b)=> a.date.localeCompare(b.date) || a.student.localeCompare(b.student));
+
+      if(arr.length===0){
+        box.innerHTML = `<div class="text-slate-500">2주 이내 일정이 없습니다.</div>`;
+        return;
+      }
+      let cur=''; let group=null;
+      arr.forEach(ev=>{
+        if(ev.date!==cur){
+          cur = ev.date;
+          group = document.createElement('div');
+          group.className='border rounded p-3 bg-slate-50';
+          group.innerHTML = `<div class="font-semibold mb-2">${formatDateKorean(cur)} (${cur})</div>`;
+          box.appendChild(group);
+        }
+        const book = vocab.books[ev.bookId];
+        const names=[];
+        if(book && book.units){
+          for(let i=ev.rangeStart;i<=ev.rangeEnd;i++){
+            if(book.units[i-1]) names.push(book.units[i-1]);
+          }
+        }
+        const row = document.createElement('div');
+        row.className='pl-2 py-2 border-b last:border-b-0 flex items-center justify-between';
+        row.innerHTML = `
+          <div>
+            <div class="font-medium">${escapeHTML(ev.student)} <span class="text-slate-400">(${escapeHTML(ev.teacher)})</span></div>
+            <div class="text-sm text-slate-600">교재: ${book?escapeHTML(book.name):'?'} · 범위: ${ev.rangeStart}–${ev.rangeEnd}</div>
+            <div class="text-xs text-slate-500">${escapeHTML(names.join(' · '))}</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="text-sm"><input type="checkbox" ${ev.done?'checked':''} onchange="vocabToggleDone('${ev.id}', this.checked)"/> 완료</label>
+            <button class="btn btn-secondary" onclick="vocabDeleteEvent('${ev.id}')">삭제</button>
+          </div>
+        `;
+        group.appendChild(row);
+      });
+    }
+    function vocabToggleDone(id, val){
+      db.ref(`vocab/events/${id}/done`).set(!!val);
+    }
+    function vocabDeleteEvent(id){
+      if(!confirm('이 단어시험 일정을 삭제할까요?')) return;
+      db.ref(`vocab/events/${id}`).remove();
+    }
+
+    // ---- Import/Export
+    function vocabExport(){
+      const data = JSON.stringify({books:vocab.books||{}, rules:vocab.rules||{}, events:vocab.events||{}}, null, 2);
+      const blob = new Blob([data], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download='vocab_scheduler_backup.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    function vocabImport(ev){
+      const file = ev.target.files?.[0];
+      if(!file) return;
+      const fr = new FileReader();
+      fr.onload = () => {
+        try{
+          const obj = JSON.parse(fr.result);
+          if(!obj || obj.books===undefined || obj.rules===undefined || obj.events===undefined) throw new Error('형식 오류');
+          const updates = {};
+          // 전부 덮어쓰기
+          updates['vocab/books'] = obj.books || {};
+          updates['vocab/rules'] = obj.rules || {};
+          updates['vocab/events'] = obj.events || {};
+          db.ref().update(updates).then(()=> alert('불러오기 완료!'));
+        }catch(e){ alert('불러오기 실패: '+e.message); }
+      };
+      fr.readAsText(file, 'utf-8');
+    }
+
+    // ---- Seed Demo
+    function vocabSeedDemo(){
+      if(!confirm('예시 규칙/교재를 추가할까요? (기존 데이터는 유지)')) return;
+      // 교재 1개 없으면 생성
+      const books = Object.entries(vocab.books||{});
+      let bookId;
+      if(books.length===0){
+        const ref = db.ref('vocab/books');
+        bookId = ref.push().key;
+        const units = Array.from({length:60},(_,i)=>`Lesson ${i+1}`);
+        ref.child(bookId).set({name:'고교기본', units});
+      }else{
+        bookId = books[0][0];
+      }
+      const rRef = db.ref('vocab/rules');
+      const rid = rRef.push().key;
+      const start = todayYMD();
+      const rule = {
+        student:'홍길동', teacher:'강민채', bookId,
+        startRange:'1-3', unitSize:3, overlap:1, overlapMode:'end',
+        weekdays:[1,5], startDate:start, maxUnit:30, occurrences:16
+      };
+      rRef.child(rid).set(rule).then(()=> vocabRegenForRule(rid,true));
+      alert('예시 규칙 생성 완료 (월/금: 1–3 → 3–5 → 5–7 …)');
+    }
+
+    function vocabRenderAll(){
+      vocabRenderToday(); vocabRenderUpcoming(); vocabRenderBooks(); vocabRenderRules();
+      vocabPopulateBookSelect();
+    }
+
+    /* ===================== 초기화 ===================== */
+    window.addEventListener('load', () => {
+      updateDateDisplay();
+      attachListenersForDate();
+      attachGlobalListenersOnce();
+      const nt = document.getElementById('newTaskInput');
+      if (nt) nt.addEventListener('keydown', (e) => { if (e.key === 'Enter') addNewTask(); });
+      vocabSwitchTab('today');
+    });
+  </script>
+</body>
+</html>
