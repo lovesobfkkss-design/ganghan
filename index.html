@@ -22,6 +22,16 @@
     .btn-secondary{background:#f8fafc;color:#0f172a}
     .input{border:1px solid #e5e7eb;border-radius:.4rem;padding:.45rem .6rem}
     .pill{padding:.15rem .5rem;border-radius:9999px;background:#f1f5f9;font-size:.75rem}
+
+    /* 터치 영역 개선 - 최소 44x44px 확보 */
+    .delete-btn {
+      min-width: 44px;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
@@ -58,16 +68,28 @@
   <div class="max-w-5xl mx-auto">
     <!-- 날짜 헤더 -->
     <div class="bg-white rounded-2xl shadow-xl p-4 mb-4">
-      <div class="flex items-center justify-between">
-        <button onclick="changeDate(-1)" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">← 전날</button>
-        <div class="text-center">
-          <div class="text-xl font-bold" id="currentDate">로딩중...</div>
-          <div id="dateInfo" class="text-sm font-bold text-green-600">오늘</div>
+      <div class="flex items-center justify-between gap-2">
+        <button onclick="changeDate(-1)" class="px-3 md:px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm md:text-base">
+          <span class="md:hidden">←</span>
+          <span class="hidden md:inline">← 전날</span>
+        </button>
+        <div class="text-center flex-1">
+          <div class="text-lg md:text-xl font-bold" id="currentDate">로딩중...</div>
+          <div id="dateInfo" class="text-xs md:text-sm font-bold text-green-600">오늘</div>
         </div>
-        <div class="flex gap-2">
-          <button onclick="openSettings()" class="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800">⚙️ 설정</button>
-          <button onclick="goToToday()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">오늘</button>
-          <button onclick="changeDate(1)" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">다음날 →</button>
+        <div class="flex gap-1 md:gap-2">
+          <button onclick="openSettings()" class="px-2 md:px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 text-sm md:text-base">
+            <span class="md:hidden">⚙️</span>
+            <span class="hidden md:inline">⚙️ 설정</span>
+          </button>
+          <button onclick="goToToday()" class="px-2 md:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm md:text-base whitespace-nowrap">
+            <span class="md:hidden">📍</span>
+            <span class="hidden md:inline">오늘</span>
+          </button>
+          <button onclick="changeDate(1)" class="px-3 md:px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm md:text-base">
+            <span class="md:hidden">→</span>
+            <span class="hidden md:inline">다음날 →</span>
+          </button>
         </div>
       </div>
     </div>
@@ -849,7 +871,7 @@
                 <button title="완료 토글" onclick="toggleTask('${id}')" class="w-7 h-7 rounded-full flex items-center justify-center ${task.checked ? 'bg-green-500 text-white' : 'bg-white border-2 border-gray-300'}">${task.checked ? '✓' : ''}</button>
                 <span class="flex-1 text-left text-lg ${labelCls}">${escapeHTML(task.label)}</span>
                 <button onclick="openNoteEditor('${id}')" class="px-2 py-1 text-sm rounded bg-yellow-100 border border-yellow-300 hover:bg-yellow-200">메모</button>
-                <button onclick="deleteTask('${id}')" class="text-red-500 hover:text-red-700 text-xl" aria-label="삭제">✕</button>
+                <button onclick="deleteTask('${id}')" class="delete-btn text-red-500 hover:text-red-700 text-xl" aria-label="삭제">✕</button>
               </div>
               ${note ? `<div class="mt-2 text-sm text-gray-700 bg-white border rounded p-2">${escapeHTML(note)}</div>` : ``}
             </div>
@@ -867,7 +889,7 @@
             <div class="font-bold text-lg">${escapeHTML(s.name)}</div>
             <div class="text-sm text-gray-600">점수: ${escapeHTML(s.score||'')} | ${escapeHTML(s.attendance||'')} | 틀린 문제: ${escapeHTML(s.wrong||'')}</div>
           </div>
-          <button onclick="deleteKorean('${id}')" class="text-red-500 hover:text-red-700 ml-4 text-xl">✕</button>
+          <button onclick="deleteKorean('${id}')" class="delete-btn text-red-500 hover:text-red-700 ml-4 text-xl">✕</button>
         </div>
       `).join('') || `<div class="text-gray-500">등록된 학생이 없습니다.</div>`;
     }
@@ -881,7 +903,7 @@
             <div class="font-bold text-lg">${escapeHTML(s.name)} <span class="text-sm text-purple-700">(${escapeHTML(s.subject)})</span></div>
             <div class="text-sm text-gray-600">점수: ${escapeHTML(s.score||'')} | 범위: ${escapeHTML(s.range||'')}</div>
           </div>
-          <button onclick="deleteHsMgmt('${id}')" class="text-red-500 hover:text-red-700 ml-4 text-xl">✕</button>
+          <button onclick="deleteHsMgmt('${id}')" class="delete-btn text-red-500 hover:text-red-700 ml-4 text-xl">✕</button>
         </div>
       `).join('') || `<div class="text-gray-500">등록된 학생이 없습니다.</div>`;
     }
@@ -900,7 +922,7 @@
                     class="px-3 py-1 rounded ${t.completed ? 'bg-gray-300' : 'bg-green-500 text-white'} text-sm">
               ${t.completed ? '재개' : '완료'}
             </button>
-            <button onclick="deleteTyping('${id}')" class="text-red-500 hover:text-red-700 text-xl">✕</button>
+            <button onclick="deleteTyping('${id}')" class="delete-btn text-red-500 hover:text-red-700 text-xl">✕</button>
           </div>
         </div>
       `).join('') || `<div class="text-gray-500">등록된 업무가 없습니다.</div>`;
@@ -944,7 +966,7 @@
             </div>
             ${s.note ? `<div class="text-xs text-gray-500 mt-1">메모: ${escapeHTML(s.note)}</div>` : ''}
           </div>
-          <button onclick="deleteTutoring('${s.id}')" class="text-red-600 hover:text-red-800 ml-4 text-xl">✕</button>
+          <button onclick="deleteTutoring('${s.id}')" class="delete-btn text-red-600 hover:text-red-800 ml-4 text-xl">✕</button>
         </div>`;
 
       let html = '';
@@ -969,7 +991,7 @@
                   ${s.topic ? `주제: ${escapeHTML(s.topic)}`:''} ${s.range ? `| 범위: ${escapeHTML(s.range)}`:''} | ${formatDateKorean(s.date)}
                 </div>
               </div>
-              <button onclick="deleteTutoring('${s.id}')" class="text-red-500 hover:text-red-700 ml-4 text-xl">✕</button>
+              <button onclick="deleteTutoring('${s.id}')" class="delete-btn text-red-500 hover:text-red-700 ml-4 text-xl">✕</button>
             </div>`).join('')}
           </div></div>`;
       }
@@ -999,7 +1021,7 @@
               | ${formatDateKorean(s.date)} ${s.time? `| ${escapeHTML(s.time)}`:''}
             </div>
           </div>
-          <button onclick="deleteRetest('${s.id}')" class="text-red-600 hover:text-red-800 ml-4 text-xl">✕</button>
+          <button onclick="deleteRetest('${s.id}')" class="delete-btn text-red-600 hover:text-red-800 ml-4 text-xl">✕</button>
         </div>`;
 
       let html = '';
@@ -1025,7 +1047,7 @@
                     | ${formatDateKorean(s.date)} ${s.time? `| ${escapeHTML(s.time)}`:''}
                   </div>
                 </div>
-                <button onclick="deleteRetest('${s.id}')" class="text-red-500 hover:text-red-700 ml-4 text-xl">✕</button>
+                <button onclick="deleteRetest('${s.id}')" class="delete-btn text-red-500 hover:text-red-700 ml-4 text-xl">✕</button>
               </div>`).join('')}
           </div></div>`;
       }
@@ -1066,11 +1088,21 @@
       // 이름순 정렬
       all.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
 
-      document.getElementById('studentCount').textContent = Object.keys(students || {}).length;
+      const totalCount = Object.keys(students || {}).length;
+      document.getElementById('studentCount').textContent = totalCount;
+
+      // 학생이 0명일 때 자동으로 섹션 펼치기
+      if (totalCount === 0) {
+        const content = document.getElementById('studentContent');
+        const icon = document.getElementById('studentToggleIcon');
+        if (content && content.style.display === 'none') {
+          content.style.display = 'block';
+          icon.style.transform = 'rotate(180deg)';
+        }
+      }
 
       const tbody = document.getElementById('studentList');
       if (!all.length) {
-        const totalCount = Object.keys(students || {}).length;
         const message = searchTerm
           ? '검색 결과가 없습니다.'
           : totalCount === 0
@@ -1091,8 +1123,8 @@
             ${s.parentPhone ? `<a href="tel:${escapeHTML(s.parentPhone)}" class="text-blue-600 hover:underline">${escapeHTML(s.parentPhone)}</a>` : '-'}
           </td>
           <td class="px-3 py-2">
-            <button onclick="editStudent('${s.id}')" class="text-green-600 hover:text-green-800 mr-2 text-sm">✏️ 수정</button>
-            <button onclick="deleteStudent('${s.id}')" class="text-red-600 hover:text-red-800 text-sm">✕ 삭제</button>
+            <button onclick="editStudent('${s.id}')" class="delete-btn text-green-600 hover:text-green-800 mr-2 text-sm">✏️ 수정</button>
+            <button onclick="deleteStudent('${s.id}')" class="delete-btn text-red-600 hover:text-red-800 text-sm">✕ 삭제</button>
           </td>
         </tr>
       `).join('');
