@@ -104,7 +104,11 @@
     <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
       <h2 class="text-2xl font-bold text-gray-800 mb-4">📚 국어 코칭 (<span id="koreanCount">0</span>명)</h2>
       <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-4">
-        <input type="text" id="koreanName" placeholder="학생 이름" class="border rounded-lg px-3 py-2">
+        <div class="relative">
+          <input type="text" id="koreanName" placeholder="학생 이름 (목록에서 선택)" list="studentsList" class="border rounded-lg px-3 py-2 w-full"
+                 onchange="showStudentInfo(this.value, 'koreanInfo')">
+          <div id="koreanInfo" class="text-xs text-gray-600 mt-1"></div>
+        </div>
         <input type="text" id="koreanScore" placeholder="점수" class="border rounded-lg px-3 py-2">
         <select id="koreanAttendance" class="border rounded-lg px-3 py-2">
           <option>출석</option><option>결석</option><option>지각</option>
@@ -123,7 +127,11 @@
           <option value="역사">역사</option>
           <option value="과학">과학</option>
         </select>
-        <input type="text" id="hsName" placeholder="학생 이름" class="border rounded-lg px-3 py-2">
+        <div class="relative">
+          <input type="text" id="hsName" placeholder="학생 이름 (목록에서 선택)" list="studentsList" class="border rounded-lg px-3 py-2 w-full"
+                 onchange="showStudentInfo(this.value, 'hsInfo')">
+          <div id="hsInfo" class="text-xs text-gray-600 mt-1"></div>
+        </div>
         <input type="text" id="hsScore" placeholder="점수" class="border rounded-lg px-3 py-2">
         <input type="text" id="hsRange" placeholder="학습 범위/메모" class="border rounded-lg px-3 py-2">
       </div>
@@ -158,7 +166,11 @@
           <option value="math">수학</option>
           <option value="english">영어</option>
         </select>
-        <input type="text" id="tutoringName" placeholder="학생 이름" class="border rounded-lg px-3 py-2">
+        <div class="relative">
+          <input type="text" id="tutoringName" placeholder="학생 이름 (목록에서 선택)" list="studentsList" class="border rounded-lg px-3 py-2 w-full"
+                 onchange="showStudentInfo(this.value, 'tutoringInfo')">
+          <div id="tutoringInfo" class="text-xs text-gray-600 mt-1"></div>
+        </div>
         <input type="time" id="tutoringTime" class="border rounded-lg px-3 py-2">
         <input type="text" id="tutoringTopic" placeholder="주제" class="border rounded-lg px-3 py-2">
         <input type="text" id="tutoringRange" placeholder="범위/내용" class="border rounded-lg px-3 py-2">
@@ -175,7 +187,11 @@
         <span id="todayRetestBadge" class="bg-red-500 text-white text-sm px-3 py-1 rounded-full ml-2" style="display:none;">오늘 0명</span>
       </h2>
       <div class="grid grid-cols-1 md:grid-cols-6 gap-2 mb-4">
-        <input type="text" id="retestName" placeholder="학생 이름" class="border rounded-lg px-3 py-2">
+        <div class="relative">
+          <input type="text" id="retestName" placeholder="학생 이름 (목록에서 선택)" list="studentsList" class="border rounded-lg px-3 py-2 w-full"
+                 onchange="showStudentInfo(this.value, 'retestInfo')">
+          <div id="retestInfo" class="text-xs text-gray-600 mt-1"></div>
+        </div>
         <input type="text" id="retestSubject" placeholder="과목" class="border rounded-lg px-3 py-2">
         <input type="text" id="retestVocabBook" placeholder="단어장" class="border rounded-lg px-3 py-2">
         <input type="text" id="retestVocabRange" placeholder="단어 범위 (예: Day 11~15)" class="border rounded-lg px-3 py-2">
@@ -657,6 +673,9 @@
     </div>
   </div>
 
+  <!-- 학생 목록 datalist -->
+  <datalist id="studentsList"></datalist>
+
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -1045,6 +1064,46 @@
           </td>
         </tr>
       `).join('');
+
+      // datalist 업데이트 (자동완성용)
+      updateStudentsList();
+    }
+
+    function updateStudentsList() {
+      const datalist = document.getElementById('studentsList');
+      if (!datalist) return;
+
+      const allStudents = Object.values(students || {}).sort((a, b) =>
+        (a.name || '').localeCompare(b.name || '', 'ko')
+      );
+
+      datalist.innerHTML = allStudents.map(s => {
+        const info = `${s.name || ''} (${s.grade || ''})`;
+        return `<option value="${escapeHTML(s.name || '')}">${escapeHTML(info)}</option>`;
+      }).join('');
+    }
+
+    function showStudentInfo(name, infoElementId) {
+      const infoEl = document.getElementById(infoElementId);
+      if (!infoEl || !name) {
+        if (infoEl) infoEl.textContent = '';
+        return;
+      }
+
+      // 학생 찾기
+      const student = Object.values(students || {}).find(s =>
+        (s.name || '').trim().toLowerCase() === name.trim().toLowerCase()
+      );
+
+      if (student) {
+        const info = [];
+        if (student.grade) info.push(`${student.grade}`);
+        if (student.studentPhone) info.push(`원생: ${student.studentPhone}`);
+        if (student.parentPhone) info.push(`학부모: ${student.parentPhone}`);
+        infoEl.textContent = info.length ? info.join(' | ') : '';
+      } else {
+        infoEl.textContent = '';
+      }
     }
 
     function addStudent() {
