@@ -142,6 +142,32 @@
       <div id="typingList" class="space-y-2"></div>
     </div>
 
+    <!-- 과목별 보강 (수학/영어) -->
+    <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4">
+        📚 과목별 보강 (<span id="tutoringCount">0</span>명)
+        <span id="todayTutoringBadge" class="bg-blue-500 text-white text-sm px-3 py-1 rounded-full ml-2" style="display:none;">오늘 0명</span>
+      </h2>
+      <div class="mb-3 flex gap-2">
+        <button id="tutoringFilterAll" class="px-4 py-2 rounded-lg bg-indigo-600 text-white" onclick="setTutoringFilter('all')">전체</button>
+        <button id="tutoringFilterMath" class="px-4 py-2 rounded-lg bg-gray-200 text-gray-700" onclick="setTutoringFilter('math')">수학</button>
+        <button id="tutoringFilterEnglish" class="px-4 py-2 rounded-lg bg-gray-200 text-gray-700" onclick="setTutoringFilter('english')">영어</button>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-6 gap-2 mb-4">
+        <select id="tutoringSubject" class="border rounded-lg px-3 py-2">
+          <option value="math">수학</option>
+          <option value="english">영어</option>
+        </select>
+        <input type="text" id="tutoringName" placeholder="학생 이름" class="border rounded-lg px-3 py-2">
+        <input type="time" id="tutoringTime" class="border rounded-lg px-3 py-2">
+        <input type="text" id="tutoringTopic" placeholder="주제" class="border rounded-lg px-3 py-2">
+        <input type="text" id="tutoringRange" placeholder="범위/내용" class="border rounded-lg px-3 py-2">
+        <input type="text" id="tutoringNote" placeholder="특이사항" class="border rounded-lg px-3 py-2">
+      </div>
+      <button onclick="addTutoring()" class="w-full bg-blue-600 text-white rounded-lg py-2 mb-4 hover:bg-blue-700">+ 보강 추가</button>
+      <div id="tutoringList"></div>
+    </div>
+
     <!-- 재시험 (단어장/범위 포함) -->
     <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
       <h2 class="text-2xl font-bold text-gray-800 mb-4">
@@ -205,6 +231,113 @@
           <h3 class="font-bold mb-2 text-red-600">미응시자 목록 (<span id="vaPendingCount">0</span>)</h3>
           <div id="vaPendingList" class="space-y-1"></div>
         </div>
+      </div>
+    </div>
+
+    <!-- 📊 학생 데이터 분석 -->
+    <div class="bg-white rounded-2xl shadow-xl p-6 mb-10">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-2xl font-bold text-gray-800">📊 과목별 보강 학생 분석</h2>
+        <div class="flex gap-2">
+          <select id="analysisSubjectFilter" class="border rounded-lg px-3 py-2" onchange="renderAnalysis()">
+            <option value="all">전체 과목</option>
+            <option value="math">수학만</option>
+            <option value="english">영어만</option>
+          </select>
+        </div>
+      </div>
+      <div class="mb-4 flex gap-2">
+        <button id="analysisTabSummary" class="btn" onclick="analysisSwitchTab('summary')">요약</button>
+        <button id="analysisTabStudents" class="btn btn-secondary" onclick="analysisSwitchTab('students')">학생별 통계</button>
+        <button id="analysisTabTimeline" class="btn btn-secondary" onclick="analysisSwitchTab('timeline')">기간별 통계</button>
+      </div>
+
+      <!-- 요약 탭 -->
+      <section id="analysisViewSummary" class="space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="p-4 bg-blue-50 rounded-lg border-2 border-blue-200">
+            <div class="text-sm text-blue-600 font-semibold">총 수학 보강 학생</div>
+            <div class="text-3xl font-bold text-blue-800" id="analysisTotalStudents">0</div>
+            <div class="text-xs text-blue-500">명</div>
+          </div>
+          <div class="p-4 bg-green-50 rounded-lg border-2 border-green-200">
+            <div class="text-sm text-green-600 font-semibold">총 보강 횟수</div>
+            <div class="text-3xl font-bold text-green-800" id="analysisTotalSessions">0</div>
+            <div class="text-xs text-green-500">회</div>
+          </div>
+          <div class="p-4 bg-purple-50 rounded-lg border-2 border-purple-200">
+            <div class="text-sm text-purple-600 font-semibold">최근 7일 보강</div>
+            <div class="text-3xl font-bold text-purple-800" id="analysisWeekSessions">0</div>
+            <div class="text-xs text-purple-500">회</div>
+          </div>
+          <div class="p-4 bg-orange-50 rounded-lg border-2 border-orange-200">
+            <div class="text-sm text-orange-600 font-semibold">오늘 보강</div>
+            <div class="text-3xl font-bold text-orange-800" id="analysisTodaySessions">0</div>
+            <div class="text-xs text-orange-500">회</div>
+          </div>
+        </div>
+        <div class="p-4 bg-gray-50 rounded-lg">
+          <h3 class="font-semibold mb-2">자주 보강받는 학생 TOP 5</h3>
+          <div id="analysisTopStudents" class="space-y-1"></div>
+        </div>
+        <div class="p-4 bg-gray-50 rounded-lg">
+          <h3 class="font-semibold mb-2">자주 다루는 주제 TOP 5</h3>
+          <div id="analysisTopTopics" class="space-y-1"></div>
+        </div>
+      </section>
+
+      <!-- 학생별 통계 탭 -->
+      <section id="analysisViewStudents" class="space-y-3 hidden">
+        <div class="text-sm text-slate-600 mb-2">학생별 보강 내역 및 통계</div>
+        <div id="analysisStudentsList" class="space-y-2"></div>
+      </section>
+
+      <!-- 기간별 통계 탭 -->
+      <section id="analysisViewTimeline" class="space-y-3 hidden">
+        <div class="text-sm text-slate-600 mb-2">최근 30일간의 보강 추이</div>
+        <div id="analysisTimelineChart" class="p-4 bg-gray-50 rounded-lg"></div>
+      </section>
+    </div>
+
+    <!-- 학생 명단 관리 -->
+    <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4">👥 학생 명단 관리 (<span id="studentCount">0</span>명)</h2>
+
+      <!-- 검색 -->
+      <div class="mb-4">
+        <input type="text" id="studentSearchInput" placeholder="🔍 학생 이름, 학년, 연락처로 검색..."
+               class="w-full border rounded-lg px-4 py-2"
+               oninput="renderStudents()">
+      </div>
+
+      <!-- 학생 추가 폼 -->
+      <div class="bg-blue-50 rounded-lg p-4 mb-4">
+        <h3 class="font-bold mb-2">새 학생 등록</h3>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-2">
+          <input type="text" id="studentName" placeholder="이름" class="border rounded-lg px-3 py-2">
+          <input type="text" id="studentGrade" placeholder="학년 (예: 중1, 고3)" class="border rounded-lg px-3 py-2">
+          <input type="text" id="studentPhone" placeholder="원생 연락처" class="border rounded-lg px-3 py-2">
+          <input type="text" id="parentPhone" placeholder="보호자 연락처" class="border rounded-lg px-3 py-2">
+        </div>
+        <button onclick="addStudent()" class="w-full bg-indigo-600 text-white rounded-lg py-2 hover:bg-indigo-700">+ 학생 추가</button>
+      </div>
+
+      <!-- 학생 목록 -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-100 text-left">
+            <tr>
+              <th class="px-3 py-2 rounded-tl-lg">이름</th>
+              <th class="px-3 py-2">학년</th>
+              <th class="px-3 py-2">원생 연락처</th>
+              <th class="px-3 py-2">보호자 연락처</th>
+              <th class="px-3 py-2 rounded-tr-lg">관리</th>
+            </tr>
+          </thead>
+          <tbody id="studentList">
+            <tr><td colspan="5" class="text-center py-4 text-gray-500">로딩중...</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -349,21 +482,177 @@
             <li>아래 <b>교재</b> 탭에서 교재명과 총 과 수를 등록합니다. (예: 고교기본, 60과)</li>
             <li><b>학생&규칙</b> 탭에서 학생/선생/교재, 시작범위(예: 1-3), 단위(3), 겹침(1), <b>겹치는 방식</b>(끝/앞)과 <b>요일</b>(월/금) 선택 → <b>규칙 추가</b>.</li>
             <li>상단 날짜 이동과 연동되어, 해당 날짜가 되면 <b>오늘</b> 탭에 자동으로 범위와 교재가 뜹니다.</li>
+            <li><b>연기 기능</b>: 학생이 결석한 경우 <b>연기</b> 버튼을 클릭하면 다음 예정 날짜로 자동 이동합니다.</li>
             <li>알림(🔔)에는 <b>오늘 단어시험</b>도 잡히며, JSON <b>내보내기/불러오기</b> 지원.</li>
           </ol>
-          <p class="text-xs text-slate-500">※ “끝 과 겹치기” = 1–3 → 3–5 → 5–7 … / “앞에서 겹치기” = 1–3 → 2–4 → 3–5 …</p>
+          <p class="text-xs text-slate-500">※ "끝 과 겹치기" = 1–3 → 3–5 → 5–7 … / "앞에서 겹치기" = 1–3 → 2–4 → 3–5 …</p>
+          <p class="text-xs text-orange-600 mt-2">※ 연기된 시험은 <b>주황색 배지</b>로 표시되며, 원래 예정 날짜가 함께 표시됩니다.</p>
         </div>
       </section>
     </div>
 
-    <!-- 안내 -->
+    <!-- 📖 상세 사용 방법 -->
+    <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4">📖 사용 방법 가이드</h2>
+
+      <!-- 기본 사용법 -->
+      <div class="mb-6">
+        <h3 class="text-lg font-bold text-indigo-600 mb-3">🔹 기본 사용법</h3>
+        <div class="bg-indigo-50 border-l-4 border-indigo-500 p-4 mb-3">
+          <h4 class="font-semibold mb-2">1️⃣ 날짜 이동</h4>
+          <ul class="text-sm space-y-1 ml-4">
+            <li>• <b>← 전날</b> 버튼: 하루 전 기록 확인</li>
+            <li>• <b>오늘</b> 버튼: 오늘 날짜로 돌아가기</li>
+            <li>• <b>다음날 →</b> 버튼: 하루 뒤 일정 확인</li>
+          </ul>
+        </div>
+        <div class="bg-indigo-50 border-l-4 border-indigo-500 p-4 mb-3">
+          <h4 class="font-semibold mb-2">2️⃣ 체크리스트 관리</h4>
+          <ul class="text-sm space-y-1 ml-4">
+            <li>• 새 항목 입력 후 <b>+ 추가</b> 버튼 클릭</li>
+            <li>• 완료한 항목은 동그라미 버튼 클릭 (✓ 표시됨)</li>
+            <li>• <b>메모</b> 버튼으로 세부 내용 작성 가능</li>
+            <li>• <b>✕</b> 버튼으로 항목 삭제</li>
+          </ul>
+        </div>
+        <div class="bg-indigo-50 border-l-4 border-indigo-500 p-4">
+          <h4 class="font-semibold mb-2">3️⃣ 알림 확인</h4>
+          <ul class="text-sm space-y-1 ml-4">
+            <li>• 오른쪽 위 <b>빨간 원</b>: 오늘 해야 할 일 개수</li>
+            <li>• 빨간 원 클릭하면 상세 알림 패널 열림</li>
+            <li>• 미완료 체크리스트 + 오늘 재시험 + 오늘 보강 + 오늘 단어시험</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 과목별 보강 -->
+      <div class="mb-6">
+        <h3 class="text-lg font-bold text-blue-600 mb-3">🔹 과목별 보강 (수학/영어)</h3>
+        <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-3">
+          <h4 class="font-semibold mb-2">📝 보강 등록하기</h4>
+          <ul class="text-sm space-y-1 ml-4">
+            <li><b>1.</b> 과목 선택 (수학 또는 영어)</li>
+            <li><b>2.</b> 학생 이름 입력 (필수)</li>
+            <li><b>3.</b> 시간 선택 (선택사항)</li>
+            <li><b>4.</b> 주제, 범위, 특이사항 입력 (선택사항)</li>
+            <li><b>5.</b> <b>+ 보강 추가</b> 버튼 클릭</li>
+          </ul>
+        </div>
+        <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-3">
+          <h4 class="font-semibold mb-2">🔍 보강 확인하기</h4>
+          <ul class="text-sm space-y-1 ml-4">
+            <li>• <b>전체/수학/영어</b> 버튼으로 필터링</li>
+            <li>• <b>보라색 배지</b>: 수학 보강</li>
+            <li>• <b>초록색 배지</b>: 영어 보강</li>
+            <li>• 오늘 보강은 <b>파란색 박스</b>로 강조 표시</li>
+          </ul>
+        </div>
+        <div class="bg-blue-50 border-l-4 border-blue-500 p-4">
+          <h4 class="font-semibold mb-2">📊 통계 분석하기</h4>
+          <ul class="text-sm space-y-1 ml-4">
+            <li>• 페이지 하단 <b>📊 과목별 보강 학생 분석</b> 섹션으로 이동</li>
+            <li>• 드롭다운에서 <b>전체 과목/수학만/영어만</b> 선택</li>
+            <li>• <b>요약</b>: 총 학생 수, 보강 횟수, TOP 5 확인</li>
+            <li>• <b>학생별 통계</b>: 각 학생의 보강 내역 및 주요 주제 확인</li>
+            <li>• <b>기간별 통계</b>: 최근 30일 보강 추이 그래프</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 단어시험 관리 -->
+      <div class="mb-6">
+        <h3 class="text-lg font-bold text-purple-600 mb-3">🔹 단어시험 스케줄러</h3>
+        <div class="bg-purple-50 border-l-4 border-purple-500 p-4 mb-3">
+          <h4 class="font-semibold mb-2">⚙️ 초기 설정 (처음 한 번만)</h4>
+          <ul class="text-sm space-y-1 ml-4">
+            <li><b>1.</b> <b>교재</b> 탭 클릭</li>
+            <li><b>2.</b> 교재명 입력 (예: 고교기본)</li>
+            <li><b>3.</b> 총 과 수 입력 (예: 60)</li>
+            <li><b>4.</b> 라벨 접두어 입력 (예: Lesson) → <b>교재 추가</b> 클릭</li>
+            <li><b>5.</b> <b>학생&규칙</b> 탭 클릭</li>
+            <li><b>6.</b> 학생 정보 입력: 이름, 선생님, 교재 선택</li>
+            <li><b>7.</b> 시작 범위 (예: 1-3), 단위 (예: 3), 겹침 (예: 1) 입력</li>
+            <li><b>8.</b> 시험 요일 선택 (예: 월, 금)</li>
+            <li><b>9.</b> 시작 날짜 선택 → <b>규칙 추가 & 일정 생성</b> 클릭</li>
+          </ul>
+        </div>
+        <div class="bg-purple-50 border-l-4 border-purple-500 p-4 mb-3">
+          <h4 class="font-semibold mb-2">📅 오늘 시험 확인하기</h4>
+          <ul class="text-sm space-y-1 ml-4">
+            <li>• 페이지 하단 <b>📘 단어시험 스케줄러</b> 섹션으로 이동</li>
+            <li>• <b>오늘</b> 탭에서 오늘 시험 보는 학생 확인</li>
+            <li>• 학생 이름, 교재, 범위(예: Lesson 1 · Lesson 2 · Lesson 3) 확인</li>
+            <li>• 시험 완료 시 <b>완료</b> 체크박스 선택</li>
+          </ul>
+        </div>
+        <div class="bg-purple-50 border-l-4 border-purple-500 p-4 mb-3">
+          <h4 class="font-semibold mb-2">🔄 학생 결석 시 (시험 연기)</h4>
+          <ul class="text-sm space-y-1 ml-4">
+            <li><b>1.</b> 결석한 학생의 시험 찾기 (오늘 또는 다가오는 탭)</li>
+            <li><b>2.</b> <b>연기</b> 버튼 클릭</li>
+            <li><b>3.</b> 확인 메시지에서 날짜 확인 (예: 10월 30일 → 11월 1일)</li>
+            <li><b>4.</b> <b>확인</b> 클릭하면 자동으로 다음 예정 날짜로 이동</li>
+            <li><b>5.</b> <b>주황색 "연기됨" 배지</b>와 원래 예정 날짜 표시됨</li>
+            <li>💡 <b>자동 계산</b>: 학생의 시험 요일(월/금 등)에 맞춰 자동으로 다음 날짜 찾아줌</li>
+          </ul>
+        </div>
+        <div class="bg-purple-50 border-l-4 border-purple-500 p-4">
+          <h4 class="font-semibold mb-2">📋 다가오는 일정 보기</h4>
+          <ul class="text-sm space-y-1 ml-4">
+            <li>• <b>다가오는</b> 탭 클릭</li>
+            <li>• 오늘 포함 2주간의 단어시험 일정 확인</li>
+            <li>• 날짜별로 그룹화되어 표시됨</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 재시험 관리 -->
+      <div class="mb-6">
+        <h3 class="text-lg font-bold text-red-600 mb-3">🔹 재시험 관리</h3>
+        <div class="bg-red-50 border-l-4 border-red-500 p-4">
+          <h4 class="font-semibold mb-2">📝 재시험 등록하기</h4>
+          <ul class="text-sm space-y-1 ml-4">
+            <li><b>1.</b> 학생 이름, 과목 입력</li>
+            <li><b>2.</b> 단어장, 단어 범위 입력 (선택사항)</li>
+            <li><b>3.</b> 재시험 날짜 및 시간 선택</li>
+            <li><b>4.</b> <b>+ 재시험 학생 추가</b> 버튼 클릭</li>
+            <li>💡 오늘 재시험은 <b>빨간색 박스</b>로 강조 표시</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 기타 기능 -->
+      <div>
+        <h3 class="text-lg font-bold text-gray-600 mb-3">🔹 기타 기능</h3>
+        <div class="grid md:grid-cols-2 gap-4">
+          <div class="bg-gray-50 border-l-4 border-gray-500 p-4">
+            <h4 class="font-semibold mb-2">📚 국어 코칭</h4>
+            <p class="text-sm">학생별 점수, 출석, 틀린 문제 기록</p>
+          </div>
+          <div class="bg-gray-50 border-l-4 border-gray-500 p-4">
+            <h4 class="font-semibold mb-2">🧭 역사/과학 관리반</h4>
+            <p class="text-sm">과목별 학생 점수 및 학습 범위 관리</p>
+          </div>
+          <div class="bg-gray-50 border-l-4 border-gray-500 p-4">
+            <h4 class="font-semibold mb-2">⌨️ 타이핑 업무</h4>
+            <p class="text-sm">업무 내용 및 완료 범위 기록, 완료/재개 토글</p>
+          </div>
+          <div class="bg-gray-50 border-l-4 border-gray-500 p-4">
+            <h4 class="font-semibold mb-2">🃏 클래스카드 / 🧠 누적 단어</h4>
+            <p class="text-sm">명단 입력 후 완료자 체크, 미응시자 자동 표시</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 간단 안내 -->
     <div class="bg-amber-50 border-2 border-amber-200 rounded-xl p-4">
-      <h3 class="font-bold text-amber-800 mb-2">📢 사용 안내</h3>
+      <h3 class="font-bold text-amber-800 mb-2">💡 빠른 팁</h3>
       <ul class="text-sm text-amber-700 space-y-1">
-        <li>• 매일 자동으로 <b>설정한 기본 체크리스트</b>가 생성됩니다.</li>
-        <li>• 항목의 <b>메모</b> 버튼으로 내용을 추가/수정하세요.</li>
-        <li>• 오른쪽 위 빨간 원: 미완료 체크리스트/오늘 재시험/미완료 타이핑/<b>오늘 단어시험</b> 알림</li>
-        <li>• 전날/다음날 버튼으로 과거 기록 확인</li>
+        <li>• 매일 자동으로 <b>설정한 기본 체크리스트</b>가 생성됩니다</li>
+        <li>• <b>⚙️ 설정</b> 버튼으로 기본 체크리스트 항목 변경 가능</li>
+        <li>• 모든 데이터는 <b>실시간 동기화</b>되어 여러 조교가 함께 사용 가능</li>
+        <li>• 날짜 이동 후 다시 <b>오늘</b> 버튼으로 현재 날짜로 돌아오세요</li>
       </ul>
     </div>
   </div>
@@ -412,7 +701,10 @@
     let koreanCoaching = {};
     let hsMgmt = {};
     let typingTasks = {};
+    let tutoringSessions = {}; // {id: {subject, name, time, topic, range, note, date}}
+    let tutoringFilter = 'all'; // 'all', 'math', 'english'
     let retestStudents = {};  // {id, name, subject, vocabBook, vocabRange, date, time}
+    let students = {}; // {id: {name, grade, studentPhone, parentPhone}}
 
     // 클래스카드/누적단어
     let ccState = { roster:{}, done:{} };
@@ -442,6 +734,10 @@
     let dailyRef=null, koreanRef=null, hsRef=null, typingRef=null, ccRef=null, vaRef=null, retestRef=null, settingsRef=null;
     // 단어 스케줄러 ref
     let vbRef=null, vrRef=null, veRef=null;
+    // 분석용 전역 리스너 (모든 날짜의 보강 데이터)
+    let tutoringAllRef=null;
+    // 학생 관리 ref
+    let studentsRef=null;
 
     /* ===================== 날짜 표시 ===================== */
     function updateDateDisplay() {
@@ -579,6 +875,76 @@
       `).join('') || `<div class="text-gray-500">등록된 업무가 없습니다.</div>`;
     }
 
+    function setTutoringFilter(filter) {
+      tutoringFilter = filter;
+      // 버튼 스타일 업데이트
+      document.getElementById('tutoringFilterAll').className = filter === 'all' ? 'px-4 py-2 rounded-lg bg-indigo-600 text-white' : 'px-4 py-2 rounded-lg bg-gray-200 text-gray-700';
+      document.getElementById('tutoringFilterMath').className = filter === 'math' ? 'px-4 py-2 rounded-lg bg-indigo-600 text-white' : 'px-4 py-2 rounded-lg bg-gray-200 text-gray-700';
+      document.getElementById('tutoringFilterEnglish').className = filter === 'english' ? 'px-4 py-2 rounded-lg bg-indigo-600 text-white' : 'px-4 py-2 rounded-lg bg-gray-200 text-gray-700';
+      renderTutoring();
+    }
+
+    function renderTutoring() {
+      const today = todayYMD();
+      const all = Object.values(tutoringSessions || {});
+
+      // 필터링
+      const filtered = tutoringFilter === 'all' ? all : all.filter(s => s.subject === tutoringFilter);
+
+      const todayItems = filtered.filter(s => s.date === today).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+      const upcomingItems = filtered.filter(s => s.date > today).sort((a,b)=>a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''));
+      const pastItems = filtered.filter(s => s.date < today).sort((a,b)=>b.date.localeCompare(a.date) || (a.time||'').localeCompare(b.time||''));
+
+      document.getElementById('tutoringCount').textContent = filtered.length;
+      const badge = document.getElementById('todayTutoringBadge');
+      badge.style.display = todayItems.length ? 'inline-block' : 'none';
+      badge.textContent = `오늘 ${todayItems.length}명`;
+
+      const subjectLabel = {'math': '수학', 'english': '영어'};
+      const card = (s, tone='') => `
+        <div class="${tone==='today'?'bg-blue-100 border-2 border-blue-400':'bg-blue-50'} rounded-lg p-4 flex justify-between items-center">
+          <div class="flex-1">
+            <div class="font-bold text-lg ${tone==='today'?'text-blue-800':''}">
+              <span class="inline-block px-2 py-0.5 rounded text-xs mr-2 ${s.subject==='math'?'bg-purple-100 text-purple-700':'bg-green-100 text-green-700'}">${subjectLabel[s.subject]||s.subject}</span>
+              ${escapeHTML(s.name)} ${s.time ? `<span class="text-sm">${escapeHTML(s.time)}</span>`:''}
+            </div>
+            <div class="text-sm ${tone==='today'?'text-blue-700':'text-gray-600'}">
+              ${s.topic ? `주제: ${escapeHTML(s.topic)}`:''} ${s.range ? `| 범위: ${escapeHTML(s.range)}`:''} ${s.date!==today ? `| ${formatDateKorean(s.date)}`:''}
+            </div>
+            ${s.note ? `<div class="text-xs text-gray-500 mt-1">메모: ${escapeHTML(s.note)}</div>` : ''}
+          </div>
+          <button onclick="deleteTutoring('${s.id}')" class="text-red-600 hover:text-red-800 ml-4 text-xl">✕</button>
+        </div>`;
+
+      let html = '';
+      if (todayItems.length) {
+        html += `<div class="mb-4"><h3 class="font-bold text-blue-600 mb-2">🔵 오늘 보강</h3>
+          <div class="space-y-2">${todayItems.map(s => card(s,'today')).join('')}</div></div>`;
+      }
+      if (upcomingItems.length) {
+        html += `<div class="mb-4"><h3 class="font-bold text-blue-600 mb-2">📅 예정된 보강</h3>
+          <div class="space-y-2">${upcomingItems.map(s => card(s)).join('')}</div></div>`;
+      }
+      if (pastItems.length && currentViewDate < today) {
+        html += `<div><h3 class="font-bold text-gray-500 mb-2">✅ 완료된 보강</h3>
+          <div class="space-y-2">${pastItems.slice(0,5).map(s => `
+            <div class="bg-gray-100 rounded-lg p-4 flex justify-between items-center opacity-70">
+              <div class="flex-1">
+                <div class="font-bold">
+                  <span class="inline-block px-2 py-0.5 rounded text-xs mr-2 ${s.subject==='math'?'bg-purple-100 text-purple-700':'bg-green-100 text-green-700'}">${subjectLabel[s.subject]||s.subject}</span>
+                  ${escapeHTML(s.name)} ${s.time ? `<span class="text-sm">${escapeHTML(s.time)}</span>`:''}
+                </div>
+                <div class="text-sm text-gray-600">
+                  ${s.topic ? `주제: ${escapeHTML(s.topic)}`:''} ${s.range ? `| 범위: ${escapeHTML(s.range)}`:''} | ${formatDateKorean(s.date)}
+                </div>
+              </div>
+              <button onclick="deleteTutoring('${s.id}')" class="text-red-500 hover:text-red-700 ml-4 text-xl">✕</button>
+            </div>`).join('')}
+          </div></div>`;
+      }
+      document.getElementById('tutoringList').innerHTML = html || `<div class="text-gray-500">보강 일정이 없습니다.</div>`;
+    }
+
     function renderRetest() {
       const today = todayYMD();
       const all = Object.values(retestStudents || {});
@@ -635,6 +1001,192 @@
       document.getElementById('retestList').innerHTML = html || `<div class="text-gray-500">재시험 일정이 없습니다.</div>`;
     }
 
+    /* ===================== 학생 명단 관리 ===================== */
+    function renderStudents() {
+      const searchTerm = (document.getElementById('studentSearchInput')?.value || '').toLowerCase().trim();
+      let all = Object.entries(students || {}).map(([id, s]) => ({id, ...s}));
+
+      // 검색 필터링
+      if (searchTerm) {
+        all = all.filter(s => {
+          const name = (s.name || '').toLowerCase();
+          const grade = (s.grade || '').toLowerCase();
+          const studentPhone = (s.studentPhone || '').toLowerCase();
+          const parentPhone = (s.parentPhone || '').toLowerCase();
+          return name.includes(searchTerm) || grade.includes(searchTerm) ||
+                 studentPhone.includes(searchTerm) || parentPhone.includes(searchTerm);
+        });
+      }
+
+      // 이름순 정렬
+      all.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
+
+      document.getElementById('studentCount').textContent = Object.keys(students || {}).length;
+
+      const tbody = document.getElementById('studentList');
+      if (!all.length) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-gray-500">${searchTerm ? '검색 결과가 없습니다.' : '등록된 학생이 없습니다.'}</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = all.map(s => `
+        <tr class="border-b hover:bg-gray-50">
+          <td class="px-3 py-2 font-medium">${escapeHTML(s.name || '')}</td>
+          <td class="px-3 py-2">${escapeHTML(s.grade || '')}</td>
+          <td class="px-3 py-2">
+            ${s.studentPhone ? `<a href="tel:${escapeHTML(s.studentPhone)}" class="text-blue-600 hover:underline">${escapeHTML(s.studentPhone)}</a>` : '-'}
+          </td>
+          <td class="px-3 py-2">
+            ${s.parentPhone ? `<a href="tel:${escapeHTML(s.parentPhone)}" class="text-blue-600 hover:underline">${escapeHTML(s.parentPhone)}</a>` : '-'}
+          </td>
+          <td class="px-3 py-2">
+            <button onclick="editStudent('${s.id}')" class="text-green-600 hover:text-green-800 mr-2 text-sm">✏️ 수정</button>
+            <button onclick="deleteStudent('${s.id}')" class="text-red-600 hover:text-red-800 text-sm">✕ 삭제</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function addStudent() {
+      const name = document.getElementById('studentName').value.trim();
+      const grade = document.getElementById('studentGrade').value.trim();
+      const studentPhone = document.getElementById('studentPhone').value.trim();
+      const parentPhone = document.getElementById('parentPhone').value.trim();
+
+      if (!name) {
+        alert('학생 이름을 입력해주세요.');
+        return;
+      }
+
+      const ref = db.ref('students');
+      const newId = ref.push().key;
+      ref.child(newId).set({ name, grade, studentPhone, parentPhone })
+        .then(() => {
+          document.getElementById('studentName').value = '';
+          document.getElementById('studentGrade').value = '';
+          document.getElementById('studentPhone').value = '';
+          document.getElementById('parentPhone').value = '';
+        })
+        .catch(err => { console.error(err); alert('학생 추가 실패'); });
+    }
+
+    function editStudent(id) {
+      const s = students[id];
+      if (!s) return;
+
+      const name = prompt('이름:', s.name || '');
+      if (name === null) return;
+
+      const grade = prompt('학년:', s.grade || '');
+      if (grade === null) return;
+
+      const studentPhone = prompt('원생 연락처:', s.studentPhone || '');
+      if (studentPhone === null) return;
+
+      const parentPhone = prompt('보호자 연락처:', s.parentPhone || '');
+      if (parentPhone === null) return;
+
+      db.ref('students/' + id).update({ name, grade, studentPhone, parentPhone })
+        .catch(err => { console.error(err); alert('수정 실패'); });
+    }
+
+    function deleteStudent(id) {
+      const s = students[id];
+      if (!s || !confirm(`${s.name} 학생 정보를 삭제하시겠습니까?`)) return;
+      db.ref('students/' + id).remove()
+        .catch(err => { console.error(err); alert('삭제 실패'); });
+    }
+
+    // 초기 학생 데이터 import 함수 (콘솔에서 한 번만 실행)
+    window.importInitialStudents = function() {
+      const initialData = [
+        {name: "강민준", grade: "중1", studentPhone: "010-9217-6690", parentPhone: "010-9286-6690"},
+        {name: "강지율", grade: "중3", studentPhone: "010-6736-2478", parentPhone: "010-2836-2478"},
+        {name: "강희경", grade: "중2", studentPhone: "010-9101-5934", parentPhone: "010-6290-1832"},
+        {name: "고은서", grade: "중3", studentPhone: "010-7340-0855", parentPhone: "010-2345-4554"},
+        {name: "공예은", grade: "중3", studentPhone: "010-4303-7675", parentPhone: "010-6400-7675"},
+        {name: "김도율", grade: "중1", studentPhone: "010-4175-0682", parentPhone: "010-4178-0682"},
+        {name: "김민성", grade: "중2", studentPhone: "010-340-0269", parentPhone: "010-3488-1269"},
+        {name: "김민주", grade: "고3", studentPhone: "010-4344-0701", parentPhone: "010-8760-8894"},
+        {name: "김보현", grade: "고1", studentPhone: "010-2485-8893", parentPhone: "010-8403-8893"},
+        {name: "김소망", grade: "고1", studentPhone: "010-9332-1991", parentPhone: "010-7152-3232"},
+        {name: "김아린", grade: "초6", studentPhone: "010-3151-1882", parentPhone: "010-9069-7369"},
+        {name: "김주원", grade: "중3", studentPhone: "010-7289-9778", parentPhone: "010-9338-9778"},
+        {name: "김준우", grade: "중1", studentPhone: "010-8277-7932", parentPhone: "010-4028-7932"},
+        {name: "김준한", grade: "중3", studentPhone: "010-7568-6454", parentPhone: "010-5303-6140"},
+        {name: "김지우", grade: "고1", studentPhone: "010-8684-9098", parentPhone: "010-9461-9098"},
+        {name: "김태헌", grade: "고3", studentPhone: "010-2772-1593", parentPhone: "010-6255-1666"},
+        {name: "김현진", grade: "고3", studentPhone: "010-6247-2723", parentPhone: "010-6241-2723"},
+        {name: "노윤아", grade: "중2", studentPhone: "", parentPhone: "010-7173-0070"},
+        {name: "문소예", grade: "중3", studentPhone: "010-7742-9824", parentPhone: "010-7655-8571"},
+        {name: "박범준", grade: "고3", studentPhone: "010-4029-9972", parentPhone: "010-5049-4432"},
+        {name: "박세은", grade: "중3", studentPhone: "010-8358-5763", parentPhone: "010-6229-2412"},
+        {name: "박창진", grade: "고2", studentPhone: "010-2894-4611", parentPhone: "010-6221-4611"},
+        {name: "배수빈", grade: "중3", studentPhone: "010-5176-1921", parentPhone: "010-5179-1921"},
+        {name: "백종원", grade: "고1", studentPhone: "010-9780-5855", parentPhone: "010-9473-8914"},
+        {name: "백지안", grade: "고3", studentPhone: "010-3696-1970", parentPhone: "010-9060-1978"},
+        {name: "변은후", grade: "중2", studentPhone: "010-4992-0764", parentPhone: "010-3112-0217"},
+        {name: "서지우", grade: "고1", studentPhone: "010-4002-8568", parentPhone: "010-9167-8568"},
+        {name: "성아란", grade: "중2", studentPhone: "010-9534-3653", parentPhone: "010-5534-3653"},
+        {name: "손채아", grade: "중3", studentPhone: "010-4074-6292", parentPhone: "010-3108-1308"},
+        {name: "송민준", grade: "고1", studentPhone: "010-2642-0046", parentPhone: "010-6734-0527"},
+        {name: "송한울", grade: "중3", studentPhone: "010-2557-5917", parentPhone: "010-5142-9452"},
+        {name: "안대일", grade: "중3", studentPhone: "010-9409-2732", parentPhone: "010-8909-0411"},
+        {name: "양라현", grade: "중1", studentPhone: "010-6413-6441", parentPhone: "010-8869-1461"},
+        {name: "양승우", grade: "중3", studentPhone: "010-8354-2971", parentPhone: "010-9098-2971"},
+        {name: "우예성", grade: "중3", studentPhone: "010-9660-8576", parentPhone: "010-5554-7859"},
+        {name: "우예준", grade: "중2", studentPhone: "010-9760-8576", parentPhone: "010-5554-7859"},
+        {name: "우현서", grade: "고1", studentPhone: "010-2070-1419", parentPhone: "010-4794-1419"},
+        {name: "은하윤", grade: "중3", studentPhone: "010-2665-1493", parentPhone: "010-5663-1493"},
+        {name: "이건우", grade: "중2", studentPhone: "010-6244-9184", parentPhone: "010-6210-9184"},
+        {name: "이서현", grade: "고1", studentPhone: "010-9049-3658", parentPhone: "010-6355-3658"},
+        {name: "이솔민", grade: "중2", studentPhone: "010-3136-8596", parentPhone: "010-7125-2079"},
+        {name: "이수인", grade: "중2", studentPhone: "010-6734-2815", parentPhone: "010-7377-2815"},
+        {name: "이예담", grade: "중1", studentPhone: "010-6379-1099", parentPhone: "010-4211-1099"},
+        {name: "이유찬", grade: "중2", studentPhone: "010-9568-1669", parentPhone: "010-9032-1669"},
+        {name: "이윤채", grade: "고3", studentPhone: "010-8959-6277", parentPhone: "010-3780-6277"},
+        {name: "이재준", grade: "고3", studentPhone: "010-9472-8985", parentPhone: "010-8778-3539"},
+        {name: "이찬민", grade: "중3", studentPhone: "010-5281-7725", parentPhone: "010-6610-7725"},
+        {name: "임재우", grade: "중3", studentPhone: "010-2636-9327", parentPhone: "010-8748-3484"},
+        {name: "임지효", grade: "중3", studentPhone: "010-6307-3062", parentPhone: "010-7157-3167"},
+        {name: "장해준", grade: "중2", studentPhone: "010-3151-2461", parentPhone: "010-7114-2461"},
+        {name: "전서윤", grade: "고2", studentPhone: "010-3170-0668", parentPhone: "010-9116-0661"},
+        {name: "전준영", grade: "고1", studentPhone: "010-7188-5269", parentPhone: "010-6312-6265"},
+        {name: "전지아", grade: "초6", studentPhone: "010-8696-6948", parentPhone: "010-2228-6948"},
+        {name: "정도현", grade: "초5", studentPhone: "010-5656-4826", parentPhone: "010-5655-4826"},
+        {name: "정민주", grade: "초6", studentPhone: "010-2284-9738", parentPhone: "010-2024-5738"},
+        {name: "조강민", grade: "초5", studentPhone: "010-4308-5055", parentPhone: "010-9491-5055"},
+        {name: "조미성", grade: "중2", studentPhone: "010-3905-0203", parentPhone: "010-8903-0721"},
+        {name: "조민찬", grade: "중2", studentPhone: "010-8433-2119", parentPhone: "010-9145-0480"},
+        {name: "조희원", grade: "초5", studentPhone: "010-2483-0480", parentPhone: "010-9145-0480"},
+        {name: "차승훈", grade: "중2", studentPhone: "010-2669-0080", parentPhone: "010-7116-9780"},
+        {name: "최상원", grade: "중3", studentPhone: "010-4566-7516", parentPhone: "010-7118-6586"},
+        {name: "최아영", grade: "고1", studentPhone: "010-7370-4128", parentPhone: "010-2976-0984"},
+        {name: "최지유", grade: "중3", studentPhone: "010-4757-7842", parentPhone: "010-3626-3888"},
+        {name: "최효준", grade: "중3", studentPhone: "010-4610-5298", parentPhone: "010-4749-3308"},
+        {name: "한지우", grade: "중2", studentPhone: "010-9464-2614", parentPhone: "010-9447-2614"},
+        {name: "한해린", grade: "초6", studentPhone: "010-4428-4832", parentPhone: "010-4426-4832"},
+        {name: "황지유", grade: "중2", studentPhone: "010-8915-7748", parentPhone: "010-9144-5585"}
+      ];
+
+      const ref = db.ref('students');
+      const updates = {};
+      initialData.forEach(student => {
+        const key = ref.push().key;
+        updates[key] = student;
+      });
+
+      ref.update(updates)
+        .then(() => {
+          console.log(`✅ ${initialData.length}명의 학생 데이터를 성공적으로 추가했습니다!`);
+          alert(`${initialData.length}명의 학생이 추가되었습니다.`);
+        })
+        .catch(err => {
+          console.error('❌ 학생 데이터 추가 실패:', err);
+          alert('데이터 추가 중 오류가 발생했습니다.');
+        });
+    };
+
     function renderNamePills(containerId, names) {
       const el = document.getElementById(containerId);
       el.innerHTML = names.length
@@ -665,14 +1217,17 @@
     /* ===================== 알림 (단어시험 포함 확장) ===================== */
     function updateNotificationPanel() {
       const today = todayYMD();
+      const subjectLabel = {'math': '수학', 'english': '영어'};
       const incompleteTasks = Object.values(dailyTasks).filter(t => !t.checked).map(t => `• ${escapeHTML(t.label)}`);
       const todayRetests = Object.values(retestStudents||{}).filter(s => s.date === today).map(s => `• ${escapeHTML(s.name)} (${escapeHTML(s.subject||'')}${s.time? ' '+escapeHTML(s.time):''})`);
+      const todayTutoring = Object.values(tutoringSessions||{}).filter(s => s.date === today).map(s => `• [${subjectLabel[s.subject]||s.subject}] ${escapeHTML(s.name)} ${s.time? escapeHTML(s.time):''} ${s.topic? '('+escapeHTML(s.topic)+')':''}`);
       const incompleteTyping = Object.values(typingTasks).filter(t => !t.completed).map(t => `• ${escapeHTML(t.task)}`);
       const todayVocabEvents = Object.values(vocab.events||{}).filter(e => e.date === today).map(e => `• ${escapeHTML(e.student)} (${e.rangeStart}–${e.rangeEnd})`);
 
       const sections = [];
       if (incompleteTasks.length) sections.push(`<h4 class="font-semibold mb-1">미완료 체크리스트</h4><div class="mb-2">${incompleteTasks.join('<br>')}</div>`);
       if (todayRetests.length) sections.push(`<h4 class="font-semibold mb-1">오늘 재시험</h4><div class="mb-2">${todayRetests.join('<br>')}</div>`);
+      if (todayTutoring.length) sections.push(`<h4 class="font-semibold mb-1">오늘 과목별 보강</h4><div class="mb-2">${todayTutoring.join('<br>')}</div>`);
       if (todayVocabEvents.length) sections.push(`<h4 class="font-semibold mb-1">오늘 단어시험</h4><div class="mb-2">${todayVocabEvents.join('<br>')}</div>`);
       if (incompleteTyping.length) sections.push(`<h4 class="font-semibold mb-1">타이핑 업무</h4><div>${incompleteTyping.join('<br>')}</div>`);
 
@@ -686,10 +1241,11 @@
       }
       const incompleteTasks = Object.values(dailyTasks).filter(t => !t.checked).length;
       const todayRetests = Object.values(retestStudents||{}).filter(s => s.date === today).length;
+      const todayTutoring = Object.values(tutoringSessions||{}).filter(s => s.date === today).length;
       const incompleteTyping = Object.values(typingTasks).filter(t => !t.completed).length;
       const todayVocabEvents = Object.values(vocab.events||{}).filter(e => e.date === today).length;
 
-      const total = incompleteTasks + todayRetests + incompleteTyping + todayVocabEvents;
+      const total = incompleteTasks + todayRetests + todayTutoring + incompleteTyping + todayVocabEvents;
 
       if (total > 0) {
         document.getElementById('notificationBadge').style.display = 'flex';
@@ -781,6 +1337,29 @@
     }
     function deleteTyping(id) {
       db.ref(`typing/${currentViewDate}/${id}`).remove().catch(err => console.error('타이핑 삭제 실패:', err));
+    }
+
+    // 과목별 보강 (전역)
+    function addTutoring() {
+      const subject = document.getElementById('tutoringSubject').value;
+      const name = document.getElementById('tutoringName').value.trim();
+      const time = document.getElementById('tutoringTime').value;
+      const topic = document.getElementById('tutoringTopic').value.trim();
+      const range = document.getElementById('tutoringRange').value.trim();
+      const note = document.getElementById('tutoringNote').value.trim();
+      if (!name) return;
+      const ref = db.ref('tutoringSessions');
+      const key = ref.push().key;
+      const item = { id: key, subject, name, time, topic, range, note, date: currentViewDate };
+      ref.child(key).set(item).catch(err => console.error('보강 추가 실패:', err));
+      document.getElementById('tutoringName').value = '';
+      document.getElementById('tutoringTime').value = '';
+      document.getElementById('tutoringTopic').value = '';
+      document.getElementById('tutoringRange').value = '';
+      document.getElementById('tutoringNote').value = '';
+    }
+    function deleteTutoring(id) {
+      db.ref(`tutoringSessions/${id}`).remove().catch(err => console.error('보강 삭제 실패:', err));
     }
 
     // 재시험(전역)
@@ -939,6 +1518,17 @@
           renderRetest();
         });
       }
+      if (!tutoringAllRef) {
+        tutoringAllRef = db.ref('tutoringSessions');
+        tutoringAllRef.on('value', snap => {
+          tutoringSessions = snap.val() || {};
+          renderTutoring(); checkNotifications(); renderAnalysis();
+        }, err => {
+          console.error('보강 데이터 로드 실패:', err);
+          tutoringSessions = {};
+          renderTutoring();
+        });
+      }
       if (!settingsRef) {
         settingsRef = db.ref('settings/defaultDailyTasks');
         settingsRef.on('value', snap => {
@@ -968,6 +1558,18 @@
         veRef.on('value', snap=>{
           vocab.events = snap.val() || {};
           vocabRenderToday(); vocabRenderUpcoming(); checkNotifications();
+        });
+      }
+      // 학생 명단 관리
+      if(!studentsRef){
+        studentsRef = db.ref('students');
+        studentsRef.on('value', snap=>{
+          students = snap.val() || {};
+          renderStudents();
+        }, err => {
+          console.error('학생 데이터 로드 실패:', err);
+          students = {};
+          renderStudents();
         });
       }
     }
@@ -1246,14 +1848,20 @@
         }
         const row = document.createElement('div');
         row.className='p-3 border rounded bg-white flex items-center justify-between gap-3';
+
+        // 연기된 시험인지 표시
+        const rescheduledBadge = ev.isRescheduled ? '<span class="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded ml-2">연기됨</span>' : '';
+
         row.innerHTML = `
-          <div>
-            <div class="font-medium">${escapeHTML(ev.student)} <span class="text-slate-400">(${escapeHTML(ev.teacher)})</span></div>
+          <div class="flex-1">
+            <div class="font-medium">${escapeHTML(ev.student)} <span class="text-slate-400">(${escapeHTML(ev.teacher)})</span>${rescheduledBadge}</div>
             <div class="text-sm text-slate-600">교재: ${book?escapeHTML(book.name):'?'} · 범위: ${ev.rangeStart}–${ev.rangeEnd}</div>
             <div class="text-xs text-slate-500">${escapeHTML(names.join(' · '))}</div>
+            ${ev.originalDate ? `<div class="text-xs text-orange-600 mt-1">원래 예정: ${formatDateKorean(ev.originalDate)}</div>` : ''}
           </div>
           <div class="flex items-center gap-2">
             <label class="text-sm"><input type="checkbox" ${ev.done?'checked':''} onchange="vocabToggleDone('${ev.id}', this.checked)"/> 완료</label>
+            <button class="btn btn-secondary" onclick="vocabRescheduleEvent('${ev.id}')">연기</button>
             <button class="btn btn-secondary" onclick="vocabDeleteEvent('${ev.id}')">삭제</button>
           </div>
         `;
@@ -1290,16 +1898,22 @@
             if(book.units[i-1]) names.push(book.units[i-1]);
           }
         }
+
+        // 연기된 시험인지 표시
+        const rescheduledBadge = ev.isRescheduled ? '<span class="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded ml-2">연기됨</span>' : '';
+
         const row = document.createElement('div');
         row.className='pl-2 py-2 border-b last:border-b-0 flex items-center justify-between';
         row.innerHTML = `
-          <div>
-            <div class="font-medium">${escapeHTML(ev.student)} <span class="text-slate-400">(${escapeHTML(ev.teacher)})</span></div>
+          <div class="flex-1">
+            <div class="font-medium">${escapeHTML(ev.student)} <span class="text-slate-400">(${escapeHTML(ev.teacher)})</span>${rescheduledBadge}</div>
             <div class="text-sm text-slate-600">교재: ${book?escapeHTML(book.name):'?'} · 범위: ${ev.rangeStart}–${ev.rangeEnd}</div>
             <div class="text-xs text-slate-500">${escapeHTML(names.join(' · '))}</div>
+            ${ev.originalDate ? `<div class="text-xs text-orange-600 mt-1">원래 예정: ${formatDateKorean(ev.originalDate)}</div>` : ''}
           </div>
           <div class="flex items-center gap-2">
             <label class="text-sm"><input type="checkbox" ${ev.done?'checked':''} onchange="vocabToggleDone('${ev.id}', this.checked)"/> 완료</label>
+            <button class="btn btn-secondary" onclick="vocabRescheduleEvent('${ev.id}')">연기</button>
             <button class="btn btn-secondary" onclick="vocabDeleteEvent('${ev.id}')">삭제</button>
           </div>
         `;
@@ -1312,6 +1926,45 @@
     function vocabDeleteEvent(id){
       if(!confirm('이 단어시험 일정을 삭제할까요?')) return;
       db.ref(`vocab/events/${id}`).remove();
+    }
+    function vocabRescheduleEvent(id){
+      const event = vocab.events[id];
+      if(!event) return;
+
+      // 해당 규칙 찾기
+      const rule = vocab.rules[event.ruleId];
+      if(!rule || !rule.weekdays || rule.weekdays.length === 0) {
+        alert('이 시험에 대한 규칙을 찾을 수 없거나 요일 설정이 없습니다.');
+        return;
+      }
+
+      // 현재 날짜에서 다음 예정 날짜 계산
+      const currentDate = event.date;
+      const nextDate = vocabNextByWeekdays(currentDate, rule.weekdays);
+
+      if(!nextDate || nextDate === currentDate) {
+        alert('다음 예정 날짜를 계산할 수 없습니다.');
+        return;
+      }
+
+      const confirmMsg = `${escapeHTML(event.student)}의 단어시험을\n${formatDateKorean(currentDate)}에서 ${formatDateKorean(nextDate)}로 연기하시겠습니까?`;
+      if(!confirm(confirmMsg)) return;
+
+      // 이벤트 업데이트
+      const updates = {
+        date: nextDate,
+        isRescheduled: true,
+        originalDate: event.originalDate || currentDate // 이미 연기된 경우 원래 날짜 유지
+      };
+
+      db.ref(`vocab/events/${id}`).update(updates)
+        .then(() => {
+          alert(`${formatDateKorean(nextDate)}로 연기되었습니다.`);
+        })
+        .catch(err => {
+          console.error('연기 실패:', err);
+          alert('연기 중 오류가 발생했습니다.');
+        });
     }
 
     // ---- Import/Export
@@ -1374,6 +2027,164 @@
       vocabPopulateBookSelect();
     }
 
+    /* ===================== 📊 수학 보강 분석 ===================== */
+    function analysisSwitchTab(name){
+      const tabs = ['summary','students','timeline'];
+      tabs.forEach(t=>{
+        document.getElementById('analysisView'+t.charAt(0).toUpperCase()+t.slice(1)).classList.toggle('hidden', t!==name);
+        document.getElementById('analysisTab'+t.charAt(0).toUpperCase()+t.slice(1)).classList.toggle('btn', t===name);
+        document.getElementById('analysisTab'+t.charAt(0).toUpperCase()+t.slice(1)).classList.toggle('btn-secondary', t!==name);
+      });
+      if(name==='summary') renderAnalysisSummary();
+      if(name==='students') renderAnalysisStudents();
+      if(name==='timeline') renderAnalysisTimeline();
+    }
+
+    function renderAnalysis(){
+      const currentTab = ['summary','students','timeline'].find(t =>
+        !document.getElementById('analysisView'+t.charAt(0).toUpperCase()+t.slice(1)).classList.contains('hidden')
+      );
+      if(currentTab==='summary') renderAnalysisSummary();
+      if(currentTab==='students') renderAnalysisStudents();
+      if(currentTab==='timeline') renderAnalysisTimeline();
+    }
+
+    function renderAnalysisSummary(){
+      const today = todayYMD();
+      const subjectFilter = document.getElementById('analysisSubjectFilter').value;
+      const all = Object.values(tutoringSessions||{});
+      const filtered = subjectFilter === 'all' ? all : all.filter(s => s.subject === subjectFilter);
+      const week7ago = addDays(today, -7);
+
+      // 통계 계산
+      const uniqueStudents = new Set(filtered.map(s=>s.name)).size;
+      const totalSessions = filtered.length;
+      const weekSessions = filtered.filter(s => s.date >= week7ago && s.date <= today).length;
+      const todaySessions = filtered.filter(s => s.date === today).length;
+
+      document.getElementById('analysisTotalStudents').textContent = uniqueStudents;
+      document.getElementById('analysisTotalSessions').textContent = totalSessions;
+      document.getElementById('analysisWeekSessions').textContent = weekSessions;
+      document.getElementById('analysisTodaySessions').textContent = todaySessions;
+
+      // TOP 5 학생
+      const studentCounts = {};
+      filtered.forEach(s => {
+        studentCounts[s.name] = (studentCounts[s.name]||0) + 1;
+      });
+      const topStudents = Object.entries(studentCounts).sort((a,b)=>b[1]-a[1]).slice(0,5);
+      document.getElementById('analysisTopStudents').innerHTML = topStudents.length
+        ? topStudents.map(([name, count]) => `
+            <div class="flex justify-between items-center py-1">
+              <span class="font-medium">${escapeHTML(name)}</span>
+              <span class="text-sm bg-blue-100 px-2 py-1 rounded">${count}회</span>
+            </div>
+          `).join('')
+        : '<div class="text-gray-500">데이터 없음</div>';
+
+      // TOP 5 주제
+      const topicCounts = {};
+      filtered.forEach(s => {
+        if(s.topic) topicCounts[s.topic] = (topicCounts[s.topic]||0) + 1;
+      });
+      const topTopics = Object.entries(topicCounts).sort((a,b)=>b[1]-a[1]).slice(0,5);
+      document.getElementById('analysisTopTopics').innerHTML = topTopics.length
+        ? topTopics.map(([topic, count]) => `
+            <div class="flex justify-between items-center py-1">
+              <span class="font-medium">${escapeHTML(topic)}</span>
+              <span class="text-sm bg-purple-100 px-2 py-1 rounded">${count}회</span>
+            </div>
+          `).join('')
+        : '<div class="text-gray-500">데이터 없음</div>';
+    }
+
+    function renderAnalysisStudents(){
+      const subjectFilter = document.getElementById('analysisSubjectFilter').value;
+      const subjectLabel = {'math': '수학', 'english': '영어'};
+      const all = Object.values(tutoringSessions||{});
+      const filtered = subjectFilter === 'all' ? all : all.filter(s => s.subject === subjectFilter);
+      const studentData = {};
+
+      filtered.forEach(s => {
+        if(!studentData[s.name]){
+          studentData[s.name] = { sessions:[], topics:new Set(), subjects:new Set() };
+        }
+        studentData[s.name].sessions.push(s);
+        if(s.topic) studentData[s.name].topics.add(s.topic);
+        if(s.subject) studentData[s.name].subjects.add(s.subject);
+      });
+
+      const entries = Object.entries(studentData).sort((a,b)=>b[1].sessions.length-a[1].sessions.length);
+      const box = document.getElementById('analysisStudentsList');
+
+      if(entries.length===0){
+        box.innerHTML = '<div class="text-gray-500">데이터가 없습니다.</div>';
+        return;
+      }
+
+      box.innerHTML = entries.map(([name, data]) => {
+        const recentSessions = data.sessions.sort((a,b)=>b.date.localeCompare(a.date)).slice(0,3);
+        return `
+          <div class="p-4 border rounded-lg bg-white">
+            <div class="flex justify-between items-center mb-2">
+              <div class="font-bold text-lg">${escapeHTML(name)}</div>
+              <div class="text-sm bg-blue-100 px-3 py-1 rounded-full">총 ${data.sessions.length}회</div>
+            </div>
+            <div class="text-sm text-gray-600 mb-2">
+              과목: ${data.subjects.size ? Array.from(data.subjects).map(s=>subjectLabel[s]||s).join(', ') : '없음'} |
+              주요 주제: ${data.topics.size ? Array.from(data.topics).slice(0,3).map(t=>escapeHTML(t)).join(', ') : '없음'}
+            </div>
+            <div class="text-xs text-gray-500">
+              <div class="font-semibold mb-1">최근 보강 내역:</div>
+              ${recentSessions.map(s => `• [${subjectLabel[s.subject]||s.subject}] ${formatDateKorean(s.date)} ${s.time||''} - ${escapeHTML(s.topic||'주제 없음')} ${s.range?'('+escapeHTML(s.range)+')':''}`).join('<br>')}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderAnalysisTimeline(){
+      const today = todayYMD();
+      const subjectFilter = document.getElementById('analysisSubjectFilter').value;
+      const day30ago = addDays(today, -30);
+      const all = Object.values(tutoringSessions||{});
+      const filtered = (subjectFilter === 'all' ? all : all.filter(s => s.subject === subjectFilter))
+        .filter(s => s.date >= day30ago && s.date <= today);
+
+      // 날짜별 집계
+      const dateCounts = {};
+      filtered.forEach(s => {
+        dateCounts[s.date] = (dateCounts[s.date]||0) + 1;
+      });
+
+      // 30일 날짜 배열 생성
+      const dates = [];
+      for(let i=30; i>=0; i--){
+        dates.push(addDays(today, -i));
+      }
+
+      const maxCount = Math.max(...dates.map(d=>dateCounts[d]||0), 1);
+      const box = document.getElementById('analysisTimelineChart');
+
+      box.innerHTML = `
+        <div class="space-y-1">
+          ${dates.map(d => {
+            const count = dateCounts[d] || 0;
+            const width = (count / maxCount * 100);
+            const isToday = d === today;
+            return `
+              <div class="flex items-center gap-2">
+                <div class="text-xs w-20 ${isToday?'font-bold text-blue-600':'text-gray-500'}">${d.slice(5)}</div>
+                <div class="flex-1 bg-gray-200 rounded-full h-6 overflow-hidden">
+                  ${count > 0 ? `<div class="bg-blue-500 h-full flex items-center justify-end px-2 text-white text-xs font-semibold" style="width:${width}%">${count}</div>` : ''}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
     /* ===================== 초기화 ===================== */
     window.addEventListener('load', () => {
       updateDateDisplay();
@@ -1382,6 +2193,7 @@
       const nt = document.getElementById('newTaskInput');
       if (nt) nt.addEventListener('keydown', (e) => { if (e.key === 'Enter') addNewTask(); });
       vocabSwitchTab('today');
+      analysisSwitchTab('summary');
     });
   </script>
 </body>
