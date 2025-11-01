@@ -250,7 +250,22 @@
 
     <!-- 누적 단어 테스트 -->
     <div class="bg-white rounded-2xl shadow-xl p-6 mb-10">
-      <h2 class="text-2xl font-bold text-gray-800 mb-4">🧠 누적 단어 테스트</h2>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-2xl font-bold text-gray-800">🧠 누적 단어 테스트</h2>
+        <button onclick="generateWeeklyVocabStats()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2">
+          📊 한 주 통계 생성
+        </button>
+      </div>
+
+      <!-- 한 주 통계 표시 영역 -->
+      <div id="weeklyVocabStats" class="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200" style="display:none;">
+        <h3 class="font-bold text-purple-800 mb-2">📈 이번 주 학습 통계 (<span id="weekStatsRange"></span>)</h3>
+        <div id="weeklyStatsContent" class="space-y-2 text-sm"></div>
+        <button onclick="applyWeeklyStats()" class="mt-3 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">
+          ✅ 이 통계로 명단 생성
+        </button>
+      </div>
+
       <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
         <textarea id="vaRosterInput" placeholder="명단: 쉼표(,) 또는 줄바꿈으로 학생 여러 명 입력" class="border rounded-lg px-3 py-2 h-24"></textarea>
         <textarea id="vaDoneInput" placeholder="완료자: 쉼표(,) 또는 줄바꿈으로 입력" class="border rounded-lg px-3 py-2 h-24"></textarea>
@@ -1549,6 +1564,126 @@
     }
     function vaClearAll() {
       db.ref(`vocabAccum/${currentViewDate}`).set({ roster:{}, done:{} });
+    }
+
+    // 한 주간 단어 통계 생성
+    let weeklyStatsData = {}; // 전역 변수로 저장
+
+    function generateWeeklyVocabStats() {
+      // 현재 날짜 기준 지난 7일간의 vocab events 분석
+      const today = new Date(currentViewDate + 'T00:00:00');
+      const weekAgo = new Date(today);
+      weekAgo.setDate(weekAgo.getDate() - 6); // 오늘 포함 7일
+
+      const startDate = ymdOf(weekAgo);
+      const endDate = currentViewDate;
+
+      // vocab.events에서 해당 기간의 완료된 시험만 필터링
+      const events = Object.values(vocab.events || {}).filter(ev => {
+        return ev.date >= startDate && ev.date <= endDate && ev.done === true;
+      });
+
+      if (events.length === 0) {
+        alert('이번 주 완료된 단어 시험이 없습니다.');
+        return;
+      }
+
+      // 학생별로 그룹화
+      const studentStats = {};
+      events.forEach(ev => {
+        const student = ev.student || '이름없음';
+        if (!studentStats[student]) {
+          studentStats[student] = [];
+        }
+
+        const bookName = vocab.books[ev.bookId]?.name || ev.bookId || '단어장';
+        const range = `${ev.rangeStart || '?'} ~ ${ev.rangeEnd || '?'}`;
+
+        studentStats[student].push({
+          bookName,
+          range,
+          rangeStart: ev.rangeStart,
+          rangeEnd: ev.rangeEnd,
+          date: ev.date
+        });
+      });
+
+      // 학생별로 범위 합치기 (같은 단어장)
+      const mergedStats = {};
+      Object.keys(studentStats).forEach(student => {
+        const tests = studentStats[student];
+
+        // 단어장별로 그룹화
+        const byBook = {};
+        tests.forEach(t => {
+          if (!byBook[t.bookName]) {
+            byBook[t.bookName] = [];
+          }
+          byBook[t.bookName].push(t);
+        });
+
+        // 단어장별 범위 표시
+        mergedStats[student] = Object.keys(byBook).map(bookName => {
+          const ranges = byBook[bookName];
+          if (ranges.length === 1) {
+            return `${bookName}: ${ranges[0].range}`;
+          } else {
+            // 여러 시험이 있으면 시작~끝 범위 표시
+            const starts = ranges.map(r => parseInt(r.rangeStart) || 0).filter(n => n > 0);
+            const ends = ranges.map(r => parseInt(r.rangeEnd) || 0).filter(n => n > 0);
+            if (starts.length > 0 && ends.length > 0) {
+              const min = Math.min(...starts);
+              const max = Math.max(...ends);
+              return `${bookName}: ${min} ~ ${max} (${ranges.length}회)`;
+            }
+            return `${bookName}: 총 ${ranges.length}회`;
+          }
+        }).join(', ');
+      });
+
+      weeklyStatsData = mergedStats;
+
+      // UI 업데이트
+      const statsContainer = document.getElementById('weeklyVocabStats');
+      const statsContent = document.getElementById('weeklyStatsContent');
+      const statsRange = document.getElementById('weekStatsRange');
+
+      statsRange.textContent = `${formatDateKorean(startDate)} ~ ${formatDateKorean(endDate)}`;
+
+      const studentNames = Object.keys(mergedStats).sort((a, b) => a.localeCompare(b, 'ko'));
+
+      statsContent.innerHTML = studentNames.map(student => `
+        <div class="flex items-start gap-2 p-2 bg-white rounded border">
+          <span class="font-bold text-purple-700 min-w-[80px]">${escapeHTML(student)}</span>
+          <span class="text-gray-700 flex-1">${escapeHTML(mergedStats[student])}</span>
+        </div>
+      `).join('');
+
+      statsContainer.style.display = 'block';
+    }
+
+    function applyWeeklyStats() {
+      if (Object.keys(weeklyStatsData).length === 0) {
+        alert('먼저 통계를 생성해주세요.');
+        return;
+      }
+
+      // 학생 명단만 roster에 추가
+      const names = Object.keys(weeklyStatsData);
+      const map = {};
+      names.forEach(n => map[n] = true);
+
+      db.ref(`vocabAccum/${currentViewDate}/roster`).set(map)
+        .then(() => {
+          alert(`${names.length}명의 학생이 명단에 추가되었습니다.`);
+          // 통계 정보를 textarea에도 표시
+          const details = names.map(student => `${student}: ${weeklyStatsData[student]}`).join('\n');
+          document.getElementById('vaRosterInput').value = details;
+        })
+        .catch(err => {
+          console.error('명단 적용 실패:', err);
+          alert('명단 적용 중 오류가 발생했습니다.');
+        });
     }
 
     /* ===================== 리스너 관리 ===================== */
