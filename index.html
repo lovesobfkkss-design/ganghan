@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>학원 업무 체크리스트 + 단어시험 스케줄러</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     .notification-badge {
       position: fixed; top: 20px; right: 20px;
@@ -31,6 +32,20 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
+    }
+    .main-tab-btn {
+      padding: 0.5rem 0.9rem;
+      border-radius: 0.5rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+    .main-tab-btn-active {
+      background: #4f46e5;
+      color: #fff;
+    }
+    .main-tab-btn-inactive {
+      background: #f3f4f6;
+      color: #374151;
     }
   </style>
 </head>
@@ -65,6 +80,20 @@
     </div>
   </div>
 
+  <!-- 달력 모달 -->
+  <div id="calendarBackdrop" class="modal-backdrop" onclick="closeCalendar()"></div>
+  <div id="calendarModal" class="modal-card" style="max-width: 400px;">
+    <div class="flex items-center justify-between mb-4">
+      <button onclick="changeCalendarMonth(-1)" class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded">◀</button>
+      <h3 class="text-xl font-bold" id="calendarTitle">2025년 1월</h3>
+      <button onclick="changeCalendarMonth(1)" class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded">▶</button>
+    </div>
+    <div id="calendarGrid" class="grid grid-cols-7 gap-1 text-center"></div>
+    <div class="mt-4 flex justify-end">
+      <button onclick="closeCalendar()" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">닫기</button>
+    </div>
+  </div>
+
   <div class="max-w-5xl mx-auto">
     <!-- 날짜 헤더 -->
     <div class="bg-white rounded-2xl shadow-xl p-4 mb-4">
@@ -73,9 +102,9 @@
           <span class="md:hidden">←</span>
           <span class="hidden md:inline">← 전날</span>
         </button>
-        <div class="text-center flex-1">
+        <div class="text-center flex-1 cursor-pointer" onclick="openCalendar()">
           <div class="text-lg md:text-xl font-bold" id="currentDate">로딩중...</div>
-          <div id="dateInfo" class="text-xs md:text-sm font-bold text-green-600">오늘</div>
+          <div id="dateInfo" class="text-xs md:text-sm font-bold text-green-600">오늘 📅</div>
         </div>
         <div class="flex gap-1 md:gap-2">
           <button onclick="openSettings()" class="px-2 md:px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 text-sm md:text-base">
@@ -94,7 +123,21 @@
       </div>
     </div>
 
+    <!-- 메인 탭 -->
+    <div class="bg-white rounded-2xl shadow-xl p-3 mb-6">
+      <div class="flex flex-wrap gap-2">
+        <button id="mainTabBtn-work" class="main-tab-btn main-tab-btn-active" onclick="switchMainTab('work')">업무</button>
+        <button id="mainTabBtn-tutoring" class="main-tab-btn main-tab-btn-inactive" onclick="switchMainTab('tutoring')">보강</button>
+        <button id="mainTabBtn-retest" class="main-tab-btn main-tab-btn-inactive" onclick="switchMainTab('retest')">재시험</button>
+        <button id="mainTabBtn-vocab" class="main-tab-btn main-tab-btn-inactive" onclick="switchMainTab('vocab')">단어시험</button>
+        <button id="mainTabBtn-homework" class="main-tab-btn main-tab-btn-inactive" onclick="switchMainTab('homework')">숙제</button>
+        <button id="mainTabBtn-students" class="main-tab-btn main-tab-btn-inactive" onclick="switchMainTab('students')">학생</button>
+        <button id="mainTabBtn-guide" class="main-tab-btn main-tab-btn-inactive" onclick="switchMainTab('guide')">가이드</button>
+      </div>
+    </div>
+
     <!-- 메인 카드 -->
+    <div id="mainTab-work">
     <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
       <div class="flex items-center justify-between mb-4">
         <div>
@@ -171,8 +214,10 @@
       <button onclick="addTyping()" class="w-full bg-indigo-600 text-white rounded-lg py-2 mb-4 hover:bg-indigo-700">+ 업무 추가</button>
       <div id="typingList" class="space-y-2"></div>
     </div>
+    </div>
 
     <!-- 과목별 보강 (수학/영어) -->
+    <div id="mainTab-tutoring" class="hidden">
     <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
       <h2 class="text-2xl font-bold text-gray-800 mb-4">
         📚 과목별 보강 (<span id="tutoringCount">0</span>명)
@@ -200,91 +245,6 @@
       </div>
       <button onclick="addTutoring()" class="w-full bg-blue-600 text-white rounded-lg py-2 mb-4 hover:bg-blue-700">+ 보강 추가</button>
       <div id="tutoringList"></div>
-    </div>
-
-    <!-- 재시험 (단어장/범위 포함) -->
-    <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
-      <h2 class="text-2xl font-bold text-gray-800 mb-4">
-        📝 재시험 관리 (<span id="retestCount">0</span>명)
-        <span id="todayRetestBadge" class="bg-red-500 text-white text-sm px-3 py-1 rounded-full ml-2" style="display:none;">오늘 0명</span>
-      </h2>
-      <div class="grid grid-cols-1 md:grid-cols-6 gap-2 mb-4">
-        <div class="relative">
-          <input type="text" id="retestName" placeholder="학생 이름 (목록에서 선택)" list="studentsList" class="border rounded-lg px-3 py-2 w-full"
-                 onchange="showStudentInfo(this.value, 'retestInfo')">
-          <div id="retestInfo" class="text-xs text-gray-600 mt-1"></div>
-        </div>
-        <input type="text" id="retestSubject" placeholder="과목" class="border rounded-lg px-3 py-2">
-        <input type="text" id="retestVocabBook" placeholder="단어장" class="border rounded-lg px-3 py-2">
-        <input type="text" id="retestVocabRange" placeholder="단어 범위 (예: Day 11~15)" class="border rounded-lg px-3 py-2">
-        <input type="date" id="retestDate" class="border rounded-lg px-3 py-2">
-        <input type="time" id="retestTime" class="border rounded-lg px-3 py-2">
-      </div>
-      <button onclick="addRetest()" class="w-full bg-red-600 text-white rounded-lg py-2 mb-4 hover:bg-red-700">+ 재시험 학생 추가</button>
-      <div id="retestList"></div>
-    </div>
-
-    <!-- 클래스카드 테스트 -->
-    <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
-      <h2 class="text-2xl font-bold text-gray-800 mb-4">🃏 클래스카드 테스트</h2>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
-        <textarea id="ccRosterInput" placeholder="명단: 쉼표(,) 또는 줄바꿈으로 학생 여러 명 입력" class="border rounded-lg px-3 py-2 h-24"></textarea>
-        <textarea id="ccDoneInput" placeholder="완료자: 쉼표(,) 또는 줄바꿈으로 입력" class="border rounded-lg px-3 py-2 h-24"></textarea>
-        <div class="flex flex-col gap-2">
-          <button onclick="ccApplyRoster()" class="w-full bg-indigo-600 text-white rounded-lg py-2 hover:bg-indigo-700">명단 적용/덮어쓰기</button>
-          <button onclick="ccApplyDone()" class="w-full bg-green-600 text-white rounded-lg py-2 hover:bg-green-700">완료자 적용</button>
-          <button onclick="ccClearAll()" class="w-full bg-gray-200 text-gray-700 rounded-lg py-2 hover:bg-gray-300">초기화</button>
-        </div>
-      </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <h3 class="font-bold mb-2">전체 명단 (<span id="ccRosterCount">0</span>)</h3>
-          <div id="ccRosterList" class="space-y-1"></div>
-        </div>
-        <div>
-          <h3 class="font-bold mb-2 text-red-600">미응시자 목록 (<span id="ccPendingCount">0</span>)</h3>
-          <div id="ccPendingList" class="space-y-1"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 누적 단어 테스트 -->
-    <div class="bg-white rounded-2xl shadow-xl p-6 mb-10">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-2xl font-bold text-gray-800">🧠 누적 단어 테스트</h2>
-        <button onclick="generateWeeklyVocabStats()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2">
-          📊 한 주 통계 생성
-        </button>
-      </div>
-
-      <!-- 한 주 통계 표시 영역 -->
-      <div id="weeklyVocabStats" class="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200" style="display:none;">
-        <h3 class="font-bold text-purple-800 mb-2">📈 이번 주 학습 통계 (<span id="weekStatsRange"></span>)</h3>
-        <div id="weeklyStatsContent" class="space-y-2 text-sm"></div>
-        <button onclick="applyWeeklyStats()" class="mt-3 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">
-          ✅ 이 통계로 명단 생성
-        </button>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
-        <textarea id="vaRosterInput" placeholder="명단: 쉼표(,) 또는 줄바꿈으로 학생 여러 명 입력" class="border rounded-lg px-3 py-2 h-24"></textarea>
-        <textarea id="vaDoneInput" placeholder="완료자: 쉼표(,) 또는 줄바꿈으로 입력" class="border rounded-lg px-3 py-2 h-24"></textarea>
-        <div class="flex flex-col gap-2">
-          <button onclick="vaApplyRoster()" class="w-full bg-indigo-600 text-white rounded-lg py-2 hover:bg-indigo-700">명단 적용/덮어쓰기</button>
-          <button onclick="vaApplyDone()" class="w-full bg-green-600 text-white rounded-lg py-2 hover:bg-green-700">완료자 적용</button>
-          <button onclick="vaClearAll()" class="w-full bg-gray-200 text-gray-700 rounded-lg py-2 hover:bg-gray-300">초기화</button>
-        </div>
-      </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <h3 class="font-bold mb-2">전체 명단 (<span id="vaRosterCount">0</span>)</h3>
-          <div id="vaRosterList" class="space-y-1"></div>
-        </div>
-        <div>
-          <h3 class="font-bold mb-2 text-red-600">미응시자 목록 (<span id="vaPendingCount">0</span>)</h3>
-          <div id="vaPendingList" class="space-y-1"></div>
-        </div>
-      </div>
     </div>
 
     <!-- 📊 학생 데이터 분석 -->
@@ -351,57 +311,93 @@
         <div id="analysisTimelineChart" class="p-4 bg-gray-50 rounded-lg"></div>
       </section>
     </div>
+    </div>
 
-    <!-- 학생 명단 관리 -->
-    <div class="bg-white rounded-2xl shadow-xl mb-6">
-      <!-- 클릭 가능한 헤더 -->
-      <div class="p-6 cursor-pointer hover:bg-gray-50 rounded-t-2xl transition" onclick="toggleStudentSection()">
-        <div class="flex items-center justify-between">
-          <h2 class="text-2xl font-bold text-gray-800">👥 학생 명단 관리 (<span id="studentCount">0</span>명)</h2>
-          <span id="studentToggleIcon" class="text-2xl transform transition-transform">▼</span>
+    <!-- 재시험 (단어장/범위 포함) -->
+    <div id="mainTab-retest" class="hidden">
+    <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4">
+        📝 재시험 관리 (<span id="retestCount">0</span>명)
+        <span id="todayRetestBadge" class="bg-red-500 text-white text-sm px-3 py-1 rounded-full ml-2" style="display:none;">오늘 0명</span>
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-6 gap-2 mb-4">
+        <div class="relative">
+          <input type="text" id="retestName" placeholder="학생 이름 (목록에서 선택)" list="studentsList" class="border rounded-lg px-3 py-2 w-full"
+                 onchange="showStudentInfo(this.value, 'retestInfo')">
+          <div id="retestInfo" class="text-xs text-gray-600 mt-1"></div>
+        </div>
+        <input type="text" id="retestSubject" placeholder="과목" class="border rounded-lg px-3 py-2">
+        <input type="text" id="retestVocabBook" placeholder="단어장" class="border rounded-lg px-3 py-2">
+        <input type="text" id="retestVocabRange" placeholder="단어 범위 (예: Day 11~15)" class="border rounded-lg px-3 py-2">
+        <input type="date" id="retestDate" class="border rounded-lg px-3 py-2">
+        <input type="time" id="retestTime" class="border rounded-lg px-3 py-2">
+      </div>
+      <button onclick="addRetest()" class="w-full bg-red-600 text-white rounded-lg py-2 mb-4 hover:bg-red-700">+ 재시험 학생 추가</button>
+      <div id="retestList"></div>
+    </div>
+
+    </div>
+
+    <div id="mainTab-vocab" class="hidden">
+    <!-- 클래스카드 테스트 -->
+    <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4">🃏 클래스카드 테스트</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+        <textarea id="ccRosterInput" placeholder="명단: 쉼표(,) 또는 줄바꿈으로 학생 여러 명 입력" class="border rounded-lg px-3 py-2 h-24"></textarea>
+        <textarea id="ccDoneInput" placeholder="완료자: 쉼표(,) 또는 줄바꿈으로 입력" class="border rounded-lg px-3 py-2 h-24"></textarea>
+        <div class="flex flex-col gap-2">
+          <button onclick="ccApplyRoster()" class="w-full bg-indigo-600 text-white rounded-lg py-2 hover:bg-indigo-700">명단 적용/덮어쓰기</button>
+          <button onclick="ccApplyDone()" class="w-full bg-green-600 text-white rounded-lg py-2 hover:bg-green-700">완료자 적용</button>
+          <button onclick="ccClearAll()" class="w-full bg-gray-200 text-gray-700 rounded-lg py-2 hover:bg-gray-300">초기화</button>
         </div>
       </div>
-
-      <!-- 접었다 펼 수 있는 내용 (기본: 숨김) -->
-      <div id="studentContent" style="display: none;" class="px-6 pb-6">
-        <!-- 검색 -->
-        <div class="mb-4">
-          <input type="text" id="studentSearchInput" placeholder="🔍 학생 이름, 학년, 연락처로 검색..."
-                 class="w-full border rounded-lg px-4 py-2"
-                 oninput="renderStudents()">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <h3 class="font-bold mb-2">전체 명단 (<span id="ccRosterCount">0</span>)</h3>
+          <div id="ccRosterList" class="space-y-1"></div>
         </div>
-
-        <!-- 학생 추가 폼 -->
-        <div class="bg-blue-50 rounded-lg p-4 mb-4">
-          <h3 class="font-bold mb-2">새 학생 등록</h3>
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-2">
-            <input type="text" id="studentName" placeholder="이름" class="border rounded-lg px-3 py-2">
-            <input type="text" id="studentGrade" placeholder="학년 (예: 중1, 고3)" class="border rounded-lg px-3 py-2">
-            <input type="text" id="studentPhone" placeholder="원생 연락처" class="border rounded-lg px-3 py-2">
-            <input type="text" id="parentPhone" placeholder="보호자 연락처" class="border rounded-lg px-3 py-2">
-          </div>
-          <div class="flex gap-2">
-            <button onclick="addStudent()" class="flex-1 bg-indigo-600 text-white rounded-lg py-2 hover:bg-indigo-700">+ 학생 추가</button>
-            <button onclick="importInitialStudentsWithConfirm()" class="bg-green-600 text-white rounded-lg px-4 py-2 hover:bg-green-700 whitespace-nowrap">📥 초기 데이터 불러오기</button>
-          </div>
+        <div>
+          <h3 class="font-bold mb-2 text-red-600">미응시자 목록 (<span id="ccPendingCount">0</span>)</h3>
+          <div id="ccPendingList" class="space-y-1"></div>
         </div>
+      </div>
+    </div>
 
-        <!-- 학생 목록 -->
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead class="bg-gray-100 text-left">
-              <tr>
-                <th class="px-3 py-2 rounded-tl-lg">이름</th>
-                <th class="px-3 py-2">학년</th>
-                <th class="px-3 py-2">원생 연락처</th>
-                <th class="px-3 py-2">보호자 연락처</th>
-                <th class="px-3 py-2 rounded-tr-lg">관리</th>
-              </tr>
-            </thead>
-            <tbody id="studentList">
-              <tr><td colspan="5" class="text-center py-4 text-gray-500">로딩중...</td></tr>
-            </tbody>
-          </table>
+    <!-- 누적 단어 테스트 -->
+    <div class="bg-white rounded-2xl shadow-xl p-6 mb-10">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-2xl font-bold text-gray-800">🧠 누적 단어 테스트</h2>
+        <button onclick="generateWeeklyVocabStats()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2">
+          📊 한 주 통계 생성
+        </button>
+      </div>
+
+      <!-- 한 주 통계 표시 영역 -->
+      <div id="weeklyVocabStats" class="mb-4 p-4 bg-purple-50 rounded-lg border border-purple-200" style="display:none;">
+        <h3 class="font-bold text-purple-800 mb-2">📈 이번 주 학습 통계 (<span id="weekStatsRange"></span>)</h3>
+        <div id="weeklyStatsContent" class="space-y-2 text-sm"></div>
+        <button onclick="applyWeeklyStats()" class="mt-3 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm">
+          ✅ 이 통계로 명단 생성
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+        <textarea id="vaRosterInput" placeholder="명단: 쉼표(,) 또는 줄바꿈으로 학생 여러 명 입력" class="border rounded-lg px-3 py-2 h-24"></textarea>
+        <textarea id="vaDoneInput" placeholder="완료자: 쉼표(,) 또는 줄바꿈으로 입력" class="border rounded-lg px-3 py-2 h-24"></textarea>
+        <div class="flex flex-col gap-2">
+          <button onclick="vaApplyRoster()" class="w-full bg-indigo-600 text-white rounded-lg py-2 hover:bg-indigo-700">명단 적용/덮어쓰기</button>
+          <button onclick="vaApplyDone()" class="w-full bg-green-600 text-white rounded-lg py-2 hover:bg-green-700">완료자 적용</button>
+          <button onclick="vaClearAll()" class="w-full bg-gray-200 text-gray-700 rounded-lg py-2 hover:bg-gray-300">초기화</button>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <h3 class="font-bold mb-2">전체 명단 (<span id="vaRosterCount">0</span>)</h3>
+          <div id="vaRosterList" class="space-y-1"></div>
+        </div>
+        <div>
+          <h3 class="font-bold mb-2 text-red-600">미응시자 목록 (<span id="vaPendingCount">0</span>)</h3>
+          <div id="vaPendingList" class="space-y-1"></div>
         </div>
       </div>
     </div>
@@ -556,6 +552,242 @@
       </section>
     </div>
 
+    </div>
+
+    <!-- 숙제 관리 탭 -->
+    <div id="mainTab-homework" class="hidden">
+    <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
+      <h2 class="text-2xl font-bold text-gray-800 mb-4">
+        📝 숙제 관리 (<span id="homeworkCount">0</span>개)
+        <span id="todayHomeworkBadge" class="bg-orange-500 text-white text-sm px-3 py-1 rounded-full ml-2" style="display:none;">오늘 마감 0개</span>
+      </h2>
+
+      <!-- 필터 영역 -->
+      <div class="mb-4 flex flex-wrap gap-2 items-center">
+        <div class="flex gap-2">
+          <select id="homeworkClassFilterSelect" class="border rounded-lg px-3 py-2" onchange="setHomeworkClassFilter(this.value)">
+            <option value="all">전체 수업</option>
+          </select>
+          <select id="homeworkStatusFilterSelect" class="border rounded-lg px-3 py-2" onchange="setHomeworkStatusFilter(this.value)">
+            <option value="all">전체 상태</option>
+            <option value="incomplete">미완료</option>
+            <option value="completed">완료</option>
+            <option value="overdue">기한 초과</option>
+          </select>
+        </div>
+        <button onclick="toggleHomeworkForm()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">+ 숙제 추가</button>
+        <button onclick="toggleClassesModal()" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">수업 관리</button>
+      </div>
+
+      <!-- 엑셀 업로드 -->
+      <div class="bg-amber-50 border-l-4 border-amber-400 p-4 mb-4 text-sm">
+        <div class="font-semibold mb-1">📥 엑셀로 숙제 일괄 등록</div>
+        <div class="text-xs text-amber-700 mb-1">헤더: 수업명 | 학생이름 | 숙제내용 | 마감일 | 교재 | 범위</div>
+        <div class="text-xs text-amber-700 mb-2">필수: 수업명, 학생이름, 숙제내용, 마감일 / 선택: 교재, 범위</div>
+        <label class="btn btn-secondary cursor-pointer">
+          엑셀 선택
+          <input id="homeworkExcelFile" type="file" accept=".xlsx,.xls" class="hidden" onchange="importHomeworkFromExcel(event)"/>
+        </label>
+      </div>
+
+      <!-- 숙제 추가 폼 (토글) -->
+      <div id="homeworkFormSection" class="bg-indigo-50 rounded-lg p-4 mb-4" style="display:none;">
+        <h3 class="font-bold mb-3">새 숙제 등록</h3>
+
+        <!-- 등록 방식 선택 -->
+        <div class="mb-3 flex gap-2">
+          <button id="hwModeIndividual" class="px-4 py-2 rounded-lg bg-indigo-600 text-white" onclick="setHwMode('individual')">개별 학생</button>
+          <button id="hwModeBulk" class="px-4 py-2 rounded-lg bg-gray-200 text-gray-700" onclick="setHwMode('bulk')">반 전체 일괄</button>
+        </div>
+
+        <!-- 개별 학생 모드 -->
+        <div id="hwIndividualMode">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+            <select id="hwClassSelect" class="border rounded-lg px-3 py-2" onchange="onHwClassChange()">
+              <option value="">수업 선택</option>
+            </select>
+            <div class="relative">
+              <input type="text" id="hwStudentName" placeholder="학생 이름 (목록에서 선택)" list="hwStudentsList" class="border rounded-lg px-3 py-2 w-full"
+                     onchange="onHwStudentChange(this.value)">
+              <div id="hwStudentInfo" class="text-xs text-gray-600 mt-1"></div>
+            </div>
+            <datalist id="hwStudentsList"></datalist>
+            <input type="text" id="hwTitle" placeholder="숙제 내용 (예: 교재 p.50~55)" class="border rounded-lg px-3 py-2">
+          </div>
+        </div>
+
+        <!-- 반 전체 일괄 모드 -->
+        <div id="hwBulkMode" style="display:none;">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
+            <select id="hwBulkClassSelect" class="border rounded-lg px-3 py-2" onchange="onHwBulkClassChange()">
+              <option value="">수업 선택 (필수)</option>
+            </select>
+            <input type="text" id="hwBulkTitle" placeholder="숙제 내용 (예: 교재 p.50~55)" class="border rounded-lg px-3 py-2">
+          </div>
+          <div id="hwBulkStudentPreview" class="mb-2 p-3 bg-white rounded-lg border text-sm">
+            <span class="text-gray-500">수업을 선택하면 해당 학생 목록이 표시됩니다</span>
+          </div>
+        </div>
+
+        <!-- 공통 입력 필드 -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-2">
+          <input type="text" id="hwTextbook" placeholder="교재명 (선택)" class="border rounded-lg px-3 py-2">
+          <input type="text" id="hwPageRange" placeholder="범위 (선택)" class="border rounded-lg px-3 py-2">
+          <input type="date" id="hwDueDate" class="border rounded-lg px-3 py-2">
+          <input type="text" id="hwDescription" placeholder="상세 설명 (선택)" class="border rounded-lg px-3 py-2">
+        </div>
+        <div class="flex gap-2">
+          <button id="hwAddBtn" onclick="addHomework()" class="flex-1 bg-indigo-600 text-white rounded-lg py-2 hover:bg-indigo-700">+ 숙제 추가</button>
+          <button id="hwBulkAddBtn" onclick="addBulkHomework()" class="flex-1 bg-green-600 text-white rounded-lg py-2 hover:bg-green-700" style="display:none;">+ 일괄 숙제 추가</button>
+          <button onclick="toggleHomeworkForm()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400">취소</button>
+        </div>
+      </div>
+
+      <!-- 숙제 목록 -->
+      <div id="homeworkList" class="space-y-4">
+        <div class="text-center text-gray-500 py-4">로딩중...</div>
+      </div>
+    </div>
+
+    <!-- 수업 관리 모달 -->
+    <div id="classesModalBackdrop" class="modal-backdrop" onclick="toggleClassesModal()"></div>
+    <div id="classesModal" class="modal-card" style="display:none;">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-bold">📚 수업 관리</h3>
+        <button onclick="toggleClassesModal()" class="text-gray-500 text-2xl leading-none">✕</button>
+      </div>
+
+      <!-- 수업 추가 폼 -->
+      <div class="bg-blue-50 rounded-lg p-4 mb-4">
+        <h4 class="font-semibold mb-2">새 수업 추가</h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
+          <input type="text" id="newClassName" placeholder="수업명 (예: 중등수학A반)" class="border rounded-lg px-3 py-2">
+          <select id="newClassSubject" class="border rounded-lg px-3 py-2">
+            <option value="수학">수학</option>
+            <option value="영어">영어</option>
+            <option value="국어">국어</option>
+            <option value="과학">과학</option>
+            <option value="사회">사회</option>
+            <option value="기타">기타</option>
+          </select>
+          <input type="text" id="newClassTeacher" placeholder="담당 선생님" class="border rounded-lg px-3 py-2">
+          <input type="text" id="newClassSchedule" placeholder="수업 일정 (예: 월/수 16:00)" class="border rounded-lg px-3 py-2">
+        </div>
+        <div class="flex gap-2">
+          <button onclick="addClass()" class="flex-1 bg-blue-600 text-white rounded-lg py-2 hover:bg-blue-700">+ 수업 추가</button>
+          <button onclick="extractClassesFromStudents()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">학생 데이터에서 추출</button>
+        </div>
+      </div>
+
+      <!-- 수업 목록 -->
+      <div class="mb-2 flex gap-2">
+        <button id="classStatusAll" class="px-3 py-1 rounded bg-indigo-600 text-white text-sm" onclick="setClassStatusFilter('all')">전체</button>
+        <button id="classStatusActive" class="px-3 py-1 rounded bg-gray-200 text-gray-700 text-sm" onclick="setClassStatusFilter('active')">진행중</button>
+        <button id="classStatusEnded" class="px-3 py-1 rounded bg-gray-200 text-gray-700 text-sm" onclick="setClassStatusFilter('ended')">종강</button>
+      </div>
+      <div id="classesList" class="space-y-2 max-h-80 overflow-y-auto">
+        <div class="text-center text-gray-500 py-4">수업이 없습니다</div>
+      </div>
+    </div>
+
+    <!-- 알림 메시지 모달 -->
+    <div id="kakaoMessageBackdrop" class="modal-backdrop" onclick="toggleKakaoMessageModal()"></div>
+    <div id="kakaoMessageModal" class="modal-card" style="display:none;">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-xl font-bold">📱 알림톡 메시지</h3>
+        <button onclick="toggleKakaoMessageModal()" class="text-gray-500 text-2xl leading-none">✕</button>
+      </div>
+      <div class="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4 mb-4">
+        <pre id="kakaoMessageContent" class="whitespace-pre-wrap text-sm font-sans"></pre>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="copyKakaoMessage()" class="flex-1 bg-yellow-500 text-white rounded-lg py-2 hover:bg-yellow-600">📋 클립보드에 복사</button>
+        <button onclick="toggleKakaoMessageModal()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400">닫기</button>
+      </div>
+    </div>
+    </div>
+
+    <div id="mainTab-students" class="hidden">
+    <!-- 학생 명단 관리 -->
+    <div class="bg-white rounded-2xl shadow-xl mb-6">
+      <!-- 클릭 가능한 헤더 -->
+      <div class="p-6 cursor-pointer hover:bg-gray-50 rounded-t-2xl transition" onclick="toggleStudentSection()">
+        <div class="flex items-center justify-between">
+          <h2 class="text-2xl font-bold text-gray-800">👥 학생 명단 관리 (<span id="studentCount">0</span>명)</h2>
+          <span id="studentToggleIcon" class="text-2xl transform transition-transform">▼</span>
+        </div>
+      </div>
+
+      <!-- 접었다 펼 수 있는 내용 (기본: 숨김) -->
+      <div id="studentContent" style="display: none;" class="px-6 pb-6">
+        <!-- 검색 -->
+        <div class="mb-4">
+          <input type="text" id="studentSearchInput" placeholder="🔍 이름, 학년, 학교, 상태, 수업, 강사, 연락처로 검색..."
+                 class="w-full border rounded-lg px-4 py-2"
+                 oninput="renderStudents()">
+        </div>
+
+        <!-- 수업 탭 -->
+        <div id="studentClassTabs" class="flex flex-wrap gap-2 mb-4"></div>
+
+        <!-- 엑셀 업로드 -->
+        <div class="bg-amber-50 border-l-4 border-amber-400 p-4 mb-4 text-sm">
+          <div class="font-semibold mb-1">📥 엑셀 업로드</div>
+          <div class="text-xs text-amber-700 mb-1">헤더: 수업명 | 담임강사 | 상태 | 이름 | 학년 | 학교 | 연락처 | 보호자연락처</div>
+          <div class="text-xs text-amber-700 mb-2">수업이 여러 개면 쉼표로 구분하세요. (예: 수학, 영어)</div>
+          <div class="flex flex-col md:flex-row gap-2">
+            <label class="btn btn-secondary cursor-pointer">
+              엑셀 선택
+              <input id="studentExcelFile" type="file" accept=".xlsx,.xls" class="hidden" onchange="importStudentsFromExcel(event)"/>
+            </label>
+          </div>
+        </div>
+
+        <!-- 학생 추가 폼 -->
+        <div class="bg-blue-50 rounded-lg p-4 mb-4">
+          <h3 class="font-bold mb-2">새 학생 등록</h3>
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-2 mb-2">
+            <input type="text" id="studentName" placeholder="이름" class="border rounded-lg px-3 py-2">
+            <input type="text" id="studentGrade" placeholder="학년 (예: 중1, 고3)" class="border rounded-lg px-3 py-2">
+            <input type="text" id="studentSchool" placeholder="학교" class="border rounded-lg px-3 py-2">
+            <input type="text" id="studentStatus" placeholder="상태" class="border rounded-lg px-3 py-2">
+            <input type="text" id="studentClasses" placeholder="수업 (예: 수학, 영어)" class="border rounded-lg px-3 py-2">
+            <input type="text" id="studentTeacher" placeholder="담임강사" class="border rounded-lg px-3 py-2">
+            <input type="text" id="studentPhone" placeholder="연락처" class="border rounded-lg px-3 py-2">
+            <input type="text" id="parentPhone" placeholder="보호자연락처" class="border rounded-lg px-3 py-2">
+          </div>
+          <div class="flex gap-2">
+            <button onclick="addStudent()" class="flex-1 bg-indigo-600 text-white rounded-lg py-2 hover:bg-indigo-700">+ 학생 추가</button>
+            <button onclick="importInitialStudentsWithConfirm()" class="bg-green-600 text-white rounded-lg px-4 py-2 hover:bg-green-700 whitespace-nowrap">📥 초기 데이터 불러오기</button>
+          </div>
+        </div>
+
+        <!-- 학생 목록 -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-100 text-left">
+              <tr>
+                <th class="px-3 py-2 rounded-tl-lg">이름</th>
+                <th class="px-3 py-2">학년</th>
+                <th class="px-3 py-2">학교</th>
+                <th class="px-3 py-2">상태</th>
+                <th class="px-3 py-2">수업</th>
+                <th class="px-3 py-2">담임강사</th>
+                <th class="px-3 py-2">연락처</th>
+                <th class="px-3 py-2">보호자연락처</th>
+                <th class="px-3 py-2 rounded-tr-lg">관리</th>
+              </tr>
+            </thead>
+            <tbody id="studentList">
+              <tr><td colspan="9" class="text-center py-4 text-gray-500">로딩중...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    </div>
+
+    <div id="mainTab-guide" class="hidden">
     <!-- 📖 상세 사용 방법 -->
     <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
       <h2 class="text-2xl font-bold text-gray-800 mb-4">📖 사용 방법 가이드</h2>
@@ -615,7 +847,7 @@
         <div class="bg-blue-50 border-l-4 border-blue-500 p-4">
           <h4 class="font-semibold mb-2">📊 통계 분석하기</h4>
           <ul class="text-sm space-y-1 ml-4">
-            <li>• 페이지 하단 <b>📊 과목별 보강 학생 분석</b> 섹션으로 이동</li>
+            <li>• <b>보강</b> 탭에서 <b>📊 과목별 보강 학생 분석</b> 확인</li>
             <li>• 드롭다운에서 <b>전체 과목/수학만/영어만</b> 선택</li>
             <li>• <b>요약</b>: 총 학생 수, 보강 횟수, TOP 5 확인</li>
             <li>• <b>학생별 통계</b>: 각 학생의 보강 내역 및 주요 주제 확인</li>
@@ -644,7 +876,7 @@
         <div class="bg-purple-50 border-l-4 border-purple-500 p-4 mb-3">
           <h4 class="font-semibold mb-2">📅 오늘 시험 확인하기</h4>
           <ul class="text-sm space-y-1 ml-4">
-            <li>• 페이지 하단 <b>📘 단어시험 스케줄러</b> 섹션으로 이동</li>
+            <li>• <b>단어시험</b> 탭에서 <b>📘 단어시험 스케줄러</b> 확인</li>
             <li>• <b>오늘</b> 탭에서 오늘 시험 보는 학생 확인</li>
             <li>• 학생 이름, 교재, 범위(예: Lesson 1 · Lesson 2 · Lesson 3) 확인</li>
             <li>• 시험 완료 시 <b>완료</b> 체크박스 선택</li>
@@ -686,6 +918,47 @@
         </div>
       </div>
 
+      <!-- 숙제 관리 -->
+      <div class="mb-6">
+        <h3 class="text-lg font-bold text-orange-600 mb-3">🔹 숙제 관리 + 알림톡</h3>
+        <div class="bg-orange-50 border-l-4 border-orange-500 p-4 mb-3">
+          <h4 class="font-semibold mb-2">📝 숙제 등록하기</h4>
+          <ul class="text-sm space-y-1 ml-4">
+            <li><b>1.</b> <b>숙제</b> 탭에서 <b>+ 숙제 추가</b> 버튼 클릭</li>
+            <li><b>2.</b> 수업 선택, 학생 이름, 숙제 내용 입력</li>
+            <li><b>3.</b> 교재명, 범위, 마감일 설정</li>
+            <li><b>4.</b> <b>+ 숙제 추가</b> 버튼 클릭</li>
+            <li>💡 마감일 기준으로 자동 정렬되며, 기한 초과 항목은 <b>빨간색</b>으로 표시</li>
+          </ul>
+        </div>
+        <div class="bg-orange-50 border-l-4 border-orange-500 p-4 mb-3">
+          <h4 class="font-semibold mb-2">📥 엑셀로 일괄 등록</h4>
+          <ul class="text-sm space-y-1 ml-4">
+            <li>• 헤더: <b>수업명 | 학생이름 | 숙제내용 | 마감일 | 교재 | 범위</b></li>
+            <li>• 필수 항목: 수업명, 학생이름, 숙제내용, 마감일</li>
+            <li>• 마감일 형식: YYYY-MM-DD (예: 2025-01-25)</li>
+          </ul>
+        </div>
+        <div class="bg-orange-50 border-l-4 border-orange-500 p-4 mb-3">
+          <h4 class="font-semibold mb-2">📚 수업 관리</h4>
+          <ul class="text-sm space-y-1 ml-4">
+            <li>• <b>수업 관리</b> 버튼으로 수업 추가/종강 관리</li>
+            <li>• <b>학생 데이터에서 추출</b>: 학생 명단의 수업 정보에서 자동 생성</li>
+            <li>• 종강된 수업은 숙제 추가 시 목록에서 제외됨</li>
+          </ul>
+        </div>
+        <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4">
+          <h4 class="font-semibold mb-2">📱 카카오 알림톡 발송</h4>
+          <ul class="text-sm space-y-1 ml-4">
+            <li><b>1.</b> 숙제 항목의 <b>📱</b> 버튼 클릭</li>
+            <li><b>2.</b> 자동 생성된 알림 메시지 확인</li>
+            <li><b>3.</b> <b>📋 클립보드에 복사</b> 버튼 클릭</li>
+            <li><b>4.</b> 카카오톡에서 학부모에게 메시지 전송</li>
+            <li>💡 메시지에 학생 이름, 숙제 내용, 마감일이 자동으로 포함됩니다</li>
+          </ul>
+        </div>
+      </div>
+
       <!-- 기타 기능 -->
       <div>
         <h3 class="text-lg font-bold text-gray-600 mb-3">🔹 기타 기능</h3>
@@ -720,6 +993,7 @@
         <li>• 날짜 이동 후 다시 <b>오늘</b> 버튼으로 현재 날짜로 돌아오세요</li>
       </ul>
     </div>
+    </div>
   </div>
 
   <!-- 학생 목록 datalist -->
@@ -747,10 +1021,25 @@
     function escapeHTML(s='') {
       return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
+    function escapeJS(s='') {
+      return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    }
     function formatDateKorean(dateStr) {
       const d = new Date(dateStr + 'T00:00:00');
       const days = ['일','월','화','수','목','금','토'];
       return `${d.getMonth()+1}월 ${d.getDate()}일 (${days[d.getDay()]})`;
+    }
+    function parseClassList(value) {
+      if (Array.isArray(value)) {
+        return value.map(v => String(v || '').trim()).filter(Boolean);
+      }
+      const text = String(value || '').trim();
+      if (!text) return [];
+      return text.split(/[,/|]/).map(s => s.trim()).filter(Boolean);
+    }
+    function formatClassList(value) {
+      const list = parseClassList(value);
+      return list.length ? list.join(', ') : '';
     }
     const parseList = (text) =>
       text.split(/[\n,]/).map(s=>s.trim()).filter(Boolean);
@@ -761,22 +1050,48 @@
       return ymdOf(d);
     }
 
+    const mainTabs = ['work', 'tutoring', 'retest', 'vocab', 'homework', 'students', 'guide'];
+    function switchMainTab(name) {
+      const selected = mainTabs.includes(name) ? name : 'work';
+      localStorage.setItem('mainTab', selected);
+
+      mainTabs.forEach(tab => {
+        const section = document.getElementById(`mainTab-${tab}`);
+        const btn = document.getElementById(`mainTabBtn-${tab}`);
+        if (section) section.classList.toggle('hidden', tab !== selected);
+        if (btn) {
+          btn.classList.toggle('main-tab-btn-active', tab === selected);
+          btn.classList.toggle('main-tab-btn-inactive', tab !== selected);
+        }
+      });
+    }
+
     /* ===================== 상태 ===================== */
     let currentViewDate = todayYMD();
 
     let defaultDaily = [];    // 설정 기본 체크리스트
     let dailyTasks = {};      // {id: {label, checked, note}}
+    let pastIncompleteDailyTasks = {}; // 과거 미완료 할일 {date: {id: {label, checked, note}}}
     let koreanCoaching = {};
     let hsMgmt = {};
     let typingTasks = {};
+    let pastIncompleteTypingTasks = {}; // 과거 미완료 타이핑 {date: {id: {task, progress, completed}}}
     let tutoringSessions = {}; // {id: {subject, name, time, topic, range, note, date}}
     let tutoringFilter = 'all'; // 'all', 'math', 'english'
     let retestStudents = {};  // {id, name, subject, vocabBook, vocabRange, date, time}
-    let students = {}; // {id: {name, grade, studentPhone, parentPhone}}
+    let students = {}; // {id: {name, grade, school, status, classes:[], teacher, studentPhone, parentPhone}}
+    let studentClassFilter = 'all';
 
     // 클래스카드/누적단어
     let ccState = { roster:{}, done:{} };
     let vaState = { roster:{}, done:{} };
+
+    // 숙제 관리
+    let homework = {};        // {id: {classId, className, subject, studentId, studentName, title, description, textbook, pageRange, assignedDate, dueDate, completed, completedAt, feedback, notificationSent, notificationSentAt}}
+    let classes = {};         // {id: {name, subject, teacher, status, schedule, createdAt, endedAt, autoExtracted}}
+    let homeworkClassFilter = 'all';
+    let homeworkStatusFilter = 'all';
+    let homeworkRef, classesRef;
 
     /* ========= 🌟 단어 스케줄러 상태(Firebase 저장) ========= */
     const vocab = {
@@ -863,20 +1178,136 @@
       closeSettings();
     }
 
+    // 달력 관련 함수
+    let calendarYear, calendarMonth;
+
+    function openCalendar() {
+      // 현재 보는 날짜를 기준으로 달력 열기
+      const [y, m, d] = currentViewDate.split('-').map(Number);
+      calendarYear = y;
+      calendarMonth = m;
+      renderCalendar();
+      document.getElementById('calendarBackdrop').style.display='block';
+      document.getElementById('calendarModal').style.display='block';
+    }
+
+    function closeCalendar() {
+      document.getElementById('calendarBackdrop').style.display='none';
+      document.getElementById('calendarModal').style.display='none';
+    }
+
+    function changeCalendarMonth(direction) {
+      calendarMonth += direction;
+      if (calendarMonth < 1) {
+        calendarMonth = 12;
+        calendarYear--;
+      } else if (calendarMonth > 12) {
+        calendarMonth = 1;
+        calendarYear++;
+      }
+      renderCalendar();
+    }
+
+    function renderCalendar() {
+      document.getElementById('calendarTitle').textContent = `${calendarYear}년 ${calendarMonth}월`;
+
+      const firstDay = new Date(calendarYear, calendarMonth - 1, 1);
+      const lastDay = new Date(calendarYear, calendarMonth, 0);
+      const daysInMonth = lastDay.getDate();
+      const startDayOfWeek = firstDay.getDay(); // 0=일요일
+
+      const today = todayYMD();
+      const selectedDate = currentViewDate;
+
+      let html = '';
+      // 요일 헤더
+      const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+      dayNames.forEach(day => {
+        html += `<div class="font-bold text-gray-700 py-2">${day}</div>`;
+      });
+
+      // 빈 칸 채우기 (이전 달 날짜)
+      for (let i = 0; i < startDayOfWeek; i++) {
+        html += `<div class="py-2"></div>`;
+      }
+
+      // 날짜 버튼들
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${calendarYear}-${String(calendarMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const isToday = dateStr === today;
+        const isSelected = dateStr === selectedDate;
+
+        let classes = 'py-2 px-1 rounded cursor-pointer hover:bg-indigo-100';
+        if (isToday) classes += ' bg-green-200 font-bold';
+        if (isSelected) classes += ' bg-indigo-600 text-white font-bold';
+
+        html += `<div class="${classes}" onclick="selectDate('${dateStr}')">${day}</div>`;
+      }
+
+      document.getElementById('calendarGrid').innerHTML = html;
+    }
+
+    function selectDate(dateStr) {
+      currentViewDate = dateStr;
+      updateDateDisplay();
+      detachListeners();
+      attachListenersForDate();
+      closeCalendar();
+    }
+
     /* ===================== 렌더러 (체크리스트 등) ===================== */
     function renderDailyTasks() {
       const listEl = document.getElementById('dailyTasksList');
       const entries = Object.entries(dailyTasks);
       const completed = entries.filter(([_, t]) => t.checked).length;
-      const total = entries.length;
+
+      // 과거 미완료 항목 수집
+      const pastEntries = [];
+      for (const [date, tasks] of Object.entries(pastIncompleteDailyTasks)) {
+        for (const [id, task] of Object.entries(tasks)) {
+          pastEntries.push([date, id, task]);
+        }
+      }
+
+      const total = entries.length + pastEntries.length;
 
       document.getElementById('completedCount').textContent = `${completed}/${total || 0}`;
       document.getElementById('progressBar').style.width = total > 0 ? ((completed / total) * 100) + '%' : '0%';
 
-      if (!entries.length) {
-        listEl.innerHTML = `<div class="text-center text-gray-500 py-4">항목이 없습니다.</div>`;
-      } else {
-        listEl.innerHTML = entries.map(([id, task]) => {
+      let html = '';
+
+      // 과거 미완료 항목 표시 (날짜 역순으로 정렬)
+      if (pastEntries.length > 0) {
+        const sortedPastEntries = pastEntries.sort((a, b) => b[0].localeCompare(a[0]));
+
+        html += `<div class="mb-4 p-3 bg-orange-50 border-2 border-orange-300 rounded-xl">
+          <h4 class="text-sm font-bold text-orange-700 mb-2">⚠️ 과거 미완료 항목 (${pastEntries.length}개)</h4>
+        `;
+
+        sortedPastEntries.forEach(([date, id, task]) => {
+          const note = task.note || '';
+          const dateLabel = formatDateKorean(date);
+          html += `
+            <div class="w-full p-3 mb-2 rounded-lg transition-all bg-white border-2 border-orange-200">
+              <div class="flex items-center gap-3">
+                <button title="완료 토글" onclick="togglePastTask('${date}', '${id}')" class="w-7 h-7 rounded-full flex items-center justify-center bg-white border-2 border-orange-400"></button>
+                <span class="flex-1 text-left text-base text-gray-800 font-medium">${escapeHTML(task.label)}</span>
+                <span class="text-xs text-orange-600 font-semibold">${dateLabel}</span>
+                <button onclick="deletePastTask('${date}', '${id}')" class="delete-btn text-red-500 hover:text-red-700 text-xl" aria-label="삭제">✕</button>
+              </div>
+              ${note ? `<div class="mt-2 text-sm text-gray-700 bg-gray-50 border rounded p-2">${escapeHTML(note)}</div>` : ``}
+            </div>
+          `;
+        });
+
+        html += `</div>`;
+      }
+
+      // 현재 날짜 항목 표시
+      if (!entries.length && !pastEntries.length) {
+        html += `<div class="text-center text-gray-500 py-4">항목이 없습니다.</div>`;
+      } else if (entries.length > 0) {
+        html += entries.map(([id, task]) => {
           const checkedCls = task.checked ? 'bg-green-50 border-2 border-green-500' : 'bg-gray-50 border-2 border-gray-200 hover:border-indigo-300';
           const labelCls = task.checked ? 'text-gray-500 line-through' : 'text-gray-800 font-medium';
           const note = task.note || '';
@@ -893,6 +1324,8 @@
           `;
         }).join('');
       }
+
+      listEl.innerHTML = html;
     }
 
     function renderKorean() {
@@ -925,22 +1358,72 @@
 
     function renderTyping() {
       const entries = Object.entries(typingTasks);
-      document.getElementById('typingCount').textContent = entries.length;
-      document.getElementById('typingList').innerHTML = entries.map(([id, t]) => `
-        <div class="bg-green-50 rounded-lg p-4 flex justify-between items-center">
-          <div class="flex-1">
-            <div class="font-bold ${t.completed ? 'line-through text-gray-500':''}">${escapeHTML(t.task)}</div>
-            <div class="text-sm text-gray-600">완료: ${escapeHTML(t.progress||'')}</div>
+
+      // 과거 미완료 타이핑 항목 수집
+      const pastEntries = [];
+      for (const [date, tasks] of Object.entries(pastIncompleteTypingTasks)) {
+        for (const [id, task] of Object.entries(tasks)) {
+          pastEntries.push([date, id, task]);
+        }
+      }
+
+      const totalCount = entries.length + pastEntries.length;
+      document.getElementById('typingCount').textContent = totalCount;
+
+      let html = '';
+
+      // 과거 미완료 항목 표시 (날짜 역순으로 정렬)
+      if (pastEntries.length > 0) {
+        const sortedPastEntries = pastEntries.sort((a, b) => b[0].localeCompare(a[0]));
+
+        html += `<div class="mb-4 p-3 bg-orange-50 border-2 border-orange-300 rounded-xl">
+          <h4 class="text-sm font-bold text-orange-700 mb-2">⚠️ 과거 미완료 타이핑 업무 (${pastEntries.length}개)</h4>
+        `;
+
+        sortedPastEntries.forEach(([date, id, t]) => {
+          const dateLabel = formatDateKorean(date);
+          html += `
+            <div class="bg-white border-2 border-orange-200 rounded-lg p-3 mb-2 flex justify-between items-center">
+              <div class="flex-1">
+                <div class="font-bold text-gray-800">${escapeHTML(t.task)}</div>
+                <div class="text-sm text-gray-600">완료: ${escapeHTML(t.progress||'')} <span class="text-xs text-orange-600 font-semibold ml-2">${dateLabel}</span></div>
+              </div>
+              <div class="flex gap-2">
+                <button onclick="togglePastTypingComplete('${date}', '${id}')"
+                        class="px-3 py-1 rounded bg-green-500 text-white text-sm">
+                  완료
+                </button>
+                <button onclick="deletePastTyping('${date}', '${id}')" class="delete-btn text-red-500 hover:text-red-700 text-xl">✕</button>
+              </div>
+            </div>
+          `;
+        });
+
+        html += `</div>`;
+      }
+
+      // 현재 날짜 항목 표시
+      if (!entries.length && !pastEntries.length) {
+        html += `<div class="text-gray-500">등록된 업무가 없습니다.</div>`;
+      } else if (entries.length > 0) {
+        html += entries.map(([id, t]) => `
+          <div class="bg-green-50 rounded-lg p-4 flex justify-between items-center">
+            <div class="flex-1">
+              <div class="font-bold ${t.completed ? 'line-through text-gray-500':''}">${escapeHTML(t.task)}</div>
+              <div class="text-sm text-gray-600">완료: ${escapeHTML(t.progress||'')}</div>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="toggleTypingComplete('${id}')"
+                      class="px-3 py-1 rounded ${t.completed ? 'bg-gray-300' : 'bg-green-500 text-white'} text-sm">
+                ${t.completed ? '재개' : '완료'}
+              </button>
+              <button onclick="deleteTyping('${id}')" class="delete-btn text-red-500 hover:text-red-700 text-xl">✕</button>
+            </div>
           </div>
-          <div class="flex gap-2">
-            <button onclick="toggleTypingComplete('${id}')"
-                    class="px-3 py-1 rounded ${t.completed ? 'bg-gray-300' : 'bg-green-500 text-white'} text-sm">
-              ${t.completed ? '재개' : '완료'}
-            </button>
-            <button onclick="deleteTyping('${id}')" class="delete-btn text-red-500 hover:text-red-700 text-xl">✕</button>
-          </div>
-        </div>
-      `).join('') || `<div class="text-gray-500">등록된 업무가 없습니다.</div>`;
+        `).join('');
+      }
+
+      document.getElementById('typingList').innerHTML = html;
     }
 
     function setTutoringFilter(filter) {
@@ -959,9 +1442,19 @@
       // 필터링
       const filtered = tutoringFilter === 'all' ? all : all.filter(s => s.subject === tutoringFilter);
 
-      const todayItems = filtered.filter(s => s.date === today).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
-      const upcomingItems = filtered.filter(s => s.date > today).sort((a,b)=>a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''));
-      const pastItems = filtered.filter(s => s.date < today).sort((a,b)=>b.date.localeCompare(a.date) || (a.time||'').localeCompare(b.time||''));
+      // 미완료와 완료 분리
+      const todayAll = filtered.filter(s => s.date === today).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+      const todayItems = todayAll.filter(s => !s.completed);
+      const todayCompleted = todayAll.filter(s => s.completed);
+
+      const upcomingAll = filtered.filter(s => s.date > today).sort((a,b)=>a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''));
+      const upcomingItems = upcomingAll.filter(s => !s.completed);
+
+      const pastAll = filtered.filter(s => s.date < today).sort((a,b)=>b.date.localeCompare(a.date) || (a.time||'').localeCompare(b.time||''));
+      const pastItems = pastAll.filter(s => !s.completed);
+
+      // 현재 보는 날짜(currentViewDate)의 완료된 보강만 표시
+      const currentDateCompleted = filtered.filter(s => s.date === currentViewDate && s.completed).sort((a,b)=>(a.time||'').localeCompare(b.time||''));
 
       document.getElementById('tutoringCount').textContent = filtered.length;
       const badge = document.getElementById('todayTutoringBadge');
@@ -969,47 +1462,98 @@
       badge.textContent = `오늘 ${todayItems.length}명`;
 
       const subjectLabel = {'math': '수학', 'english': '영어'};
-      const card = (s, tone='') => `
-        <div class="${tone==='today'?'bg-blue-100 border-2 border-blue-400':'bg-blue-50'} rounded-lg p-4 flex justify-between items-center">
-          <div class="flex-1">
-            <div class="font-bold text-lg ${tone==='today'?'text-blue-800':''}">
-              <span class="inline-block px-2 py-0.5 rounded text-xs mr-2 ${s.subject==='math'?'bg-purple-100 text-purple-700':'bg-green-100 text-green-700'}">${subjectLabel[s.subject]||s.subject}</span>
-              ${escapeHTML(s.name)} ${s.time ? `<span class="text-sm">${escapeHTML(s.time)}</span>`:''}
-            </div>
-            <div class="text-sm ${tone==='today'?'text-blue-700':'text-gray-600'}">
-              ${s.topic ? `주제: ${escapeHTML(s.topic)}`:''} ${s.range ? `| 범위: ${escapeHTML(s.range)}`:''} ${s.date!==today ? `| ${formatDateKorean(s.date)}`:''}
-            </div>
-            ${s.note ? `<div class="text-xs text-gray-500 mt-1">메모: ${escapeHTML(s.note)}</div>` : ''}
-          </div>
-          <button onclick="deleteTutoring('${s.id}')" class="delete-btn text-red-600 hover:text-red-800 ml-4 text-xl">✕</button>
-        </div>`;
+      const card = (s, tone='') => {
+        const isCompleted = s.completed;
+        const bgClass = isCompleted ? 'bg-gray-200' : (tone==='today'?'bg-blue-100 border-2 border-blue-400':'bg-blue-50');
+        const textClass = isCompleted ? 'text-gray-600' : (tone==='today'?'text-blue-800':'');
+        const checkMark = isCompleted ? '✓ ' : '';
 
-      let html = '';
-      if (todayItems.length) {
-        html += `<div class="mb-4"><h3 class="font-bold text-blue-600 mb-2">🔵 오늘 보강</h3>
-          <div class="space-y-2">${todayItems.map(s => card(s,'today')).join('')}</div></div>`;
-      }
-      if (upcomingItems.length) {
-        html += `<div class="mb-4"><h3 class="font-bold text-blue-600 mb-2">📅 예정된 보강</h3>
-          <div class="space-y-2">${upcomingItems.map(s => card(s)).join('')}</div></div>`;
-      }
-      if (pastItems.length && currentViewDate < today) {
-        html += `<div><h3 class="font-bold text-gray-500 mb-2">✅ 완료된 보강</h3>
-          <div class="space-y-2">${pastItems.slice(0,5).map(s => `
-            <div class="bg-gray-100 rounded-lg p-4 flex justify-between items-center opacity-70">
+        return `
+        <div class="${bgClass} rounded-lg p-4">
+          <div class="flex justify-between items-start">
+            <div class="flex items-start gap-3 flex-1">
+              <!-- 완료 체크박스 -->
+              <input type="checkbox" ${isCompleted ? 'checked' : ''}
+                     onclick="toggleTutoringCompleted('${s.id}')"
+                     class="mt-1 w-5 h-5 cursor-pointer">
+
               <div class="flex-1">
-                <div class="font-bold">
-                  <span class="inline-block px-2 py-0.5 rounded text-xs mr-2 ${s.subject==='math'?'bg-purple-100 text-purple-700':'bg-green-100 text-green-700'}">${subjectLabel[s.subject]||s.subject}</span>
+                <div class="font-bold text-lg ${textClass}">
+                  ${checkMark}<span class="inline-block px-2 py-0.5 rounded text-xs mr-2 ${s.subject==='math'?'bg-purple-100 text-purple-700':'bg-green-100 text-green-700'}">${subjectLabel[s.subject]||s.subject}</span>
+                  ${escapeHTML(s.name)} ${s.time ? `<span class="text-sm">${escapeHTML(s.time)}</span>`:''}
+                </div>
+                <div class="text-sm ${isCompleted ? 'text-gray-600' : (tone==='today'?'text-blue-700':'text-gray-600')}">
+                  ${s.topic ? `주제: ${escapeHTML(s.topic)}`:''} ${s.range ? `| 범위: ${escapeHTML(s.range)}`:''} ${s.date!==today ? `| ${formatDateKorean(s.date)}`:''}
+                </div>
+                ${s.note ? `<div class="text-xs text-gray-500 mt-1">메모: ${escapeHTML(s.note)}</div>` : ''}
+                ${isCompleted && s.completedDetails ? `<div class="text-xs text-green-700 bg-green-50 rounded px-2 py-1 mt-1">📝 ${escapeHTML(s.completedDetails)}</div>` : ''}
+              </div>
+            </div>
+
+            <div class="flex gap-2 ml-4">
+              <button onclick="updateTutoringDetails('${s.id}')"
+                      class="delete-btn bg-green-500 hover:bg-green-600 text-white text-xs px-3 py-1 rounded"
+                      title="보강 내용 입력">
+                📝
+              </button>
+              <button onclick="deleteTutoring('${s.id}')" class="delete-btn text-red-600 hover:text-red-800 text-xl">✕</button>
+            </div>
+          </div>
+        </div>`;
+      };
+
+      // 완료된 보강 카드 (회색 배경, 체크마크 표시)
+      const completedCard = (s) => `
+        <div class="bg-gray-100 rounded-lg p-4 opacity-70">
+          <div class="flex justify-between items-start">
+            <div class="flex items-start gap-3 flex-1">
+              <input type="checkbox" checked onclick="toggleTutoringCompleted('${s.id}')" class="mt-1 w-5 h-5 cursor-pointer">
+              <div class="flex-1">
+                <div class="font-bold text-gray-700">
+                  ✓ <span class="inline-block px-2 py-0.5 rounded text-xs mr-2 ${s.subject==='math'?'bg-purple-100 text-purple-700':'bg-green-100 text-green-700'}">${subjectLabel[s.subject]||s.subject}</span>
                   ${escapeHTML(s.name)} ${s.time ? `<span class="text-sm">${escapeHTML(s.time)}</span>`:''}
                 </div>
                 <div class="text-sm text-gray-600">
-                  ${s.topic ? `주제: ${escapeHTML(s.topic)}`:''} ${s.range ? `| 범위: ${escapeHTML(s.range)}`:''} | ${formatDateKorean(s.date)}
+                  ${s.topic ? `주제: ${escapeHTML(s.topic)}`:''} ${s.range ? `| 범위: ${escapeHTML(s.range)}`:''} ${s.date!==today ? `| ${formatDateKorean(s.date)}`:''}
                 </div>
+                ${s.note ? `<div class="text-xs text-gray-500 mt-1">메모: ${escapeHTML(s.note)}</div>` : ''}
+                ${s.completedDetails ? `<div class="text-xs text-green-700 bg-green-50 rounded px-2 py-1 mt-1">📝 ${escapeHTML(s.completedDetails)}</div>` : ''}
               </div>
-              <button onclick="deleteTutoring('${s.id}')" class="delete-btn text-red-500 hover:text-red-700 ml-4 text-xl">✕</button>
-            </div>`).join('')}
-          </div></div>`;
+            </div>
+            <div class="flex gap-2 ml-4">
+              <button onclick="updateTutoringDetails('${s.id}')" class="delete-btn bg-green-500 hover:bg-green-600 text-white text-xs px-3 py-1 rounded" title="보강 내용 입력">📝</button>
+              <button onclick="deleteTutoring('${s.id}')" class="delete-btn text-red-500 hover:text-red-700 text-xl">✕</button>
+            </div>
+          </div>
+        </div>`;
+
+      let html = '';
+
+      // 오늘 보강 (미완료만)
+      if (todayItems.length) {
+        html += `<div class="mb-4"><h3 class="font-bold text-blue-600 mb-2">🔵 오늘 보강 (${todayItems.length}명)</h3>
+          <div class="space-y-2">${todayItems.map(s => card(s,'today')).join('')}</div></div>`;
       }
+
+      // 예정된 보강 (미완료만)
+      if (upcomingItems.length) {
+        html += `<div class="mb-4"><h3 class="font-bold text-blue-600 mb-2">📅 예정된 보강 (${upcomingItems.length}명)</h3>
+          <div class="space-y-2">${upcomingItems.map(s => card(s)).join('')}</div></div>`;
+      }
+
+      // 미완료 과거 보강 (아직 해야 할 것만 표시)
+      if (pastItems.length) {
+        html += `<div class="mb-4"><h3 class="font-bold text-orange-600 mb-2">⚠️ 미완료 과거 보강 (${pastItems.length}명)</h3>
+          <div class="space-y-2">${pastItems.slice(0,5).map(s => card(s)).join('')}</div></div>`;
+      }
+
+      // 현재 보는 날짜의 완료된 보강만 표시
+      if (currentDateCompleted.length) {
+        const dateLabel = currentViewDate === today ? '오늘' : formatDateKorean(currentViewDate);
+        html += `<div class="mb-4"><h3 class="font-bold text-green-600 mb-2">✅ ${dateLabel} 완료된 보강 (${currentDateCompleted.length}명)</h3>
+          <div class="space-y-2">${currentDateCompleted.map(s => completedCard(s)).join('')}</div></div>`;
+      }
+
       document.getElementById('tutoringList').innerHTML = html || `<div class="text-gray-500">보강 일정이 없습니다.</div>`;
     }
 
@@ -1086,18 +1630,41 @@
 
     function renderStudents() {
       const searchTerm = (document.getElementById('studentSearchInput')?.value || '').toLowerCase().trim();
-      let all = Object.entries(students || {}).map(([id, s]) => ({id, ...s}));
+      const allEntries = Object.entries(students || {}).map(([id, s]) => ({id, ...s}));
+
+      const classSet = new Set();
+      allEntries.forEach(s => {
+        parseClassList(s.classes).forEach(c => classSet.add(c));
+      });
+
+      if (studentClassFilter !== 'all' && !classSet.has(studentClassFilter)) {
+        studentClassFilter = 'all';
+      }
+
+      renderStudentClassTabs(Array.from(classSet).sort((a, b) => a.localeCompare(b, 'ko')));
+
+      let all = allEntries;
 
       // 검색 필터링
       if (searchTerm) {
         all = all.filter(s => {
           const name = (s.name || '').toLowerCase();
           const grade = (s.grade || '').toLowerCase();
+          const school = (s.school || '').toLowerCase();
+          const status = (s.status || '').toLowerCase();
+          const classes = formatClassList(s.classes).toLowerCase();
+          const teacher = (s.teacher || '').toLowerCase();
           const studentPhone = (s.studentPhone || '').toLowerCase();
           const parentPhone = (s.parentPhone || '').toLowerCase();
           return name.includes(searchTerm) || grade.includes(searchTerm) ||
+                 school.includes(searchTerm) || status.includes(searchTerm) ||
+                 classes.includes(searchTerm) || teacher.includes(searchTerm) ||
                  studentPhone.includes(searchTerm) || parentPhone.includes(searchTerm);
         });
+      }
+
+      if (studentClassFilter !== 'all') {
+        all = all.filter(s => parseClassList(s.classes).includes(studentClassFilter));
       }
 
       // 이름순 정렬
@@ -1123,7 +1690,7 @@
           : totalCount === 0
             ? '등록된 학생이 없습니다. 위의 "📥 초기 데이터 불러오기" 버튼을 클릭하거나 직접 학생을 추가해주세요.'
             : '등록된 학생이 없습니다.';
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-gray-500">${message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-gray-500">${message}</td></tr>`;
         return;
       }
 
@@ -1131,6 +1698,10 @@
         <tr class="border-b hover:bg-gray-50">
           <td class="px-3 py-2 font-medium">${escapeHTML(s.name || '')}</td>
           <td class="px-3 py-2">${escapeHTML(s.grade || '')}</td>
+          <td class="px-3 py-2">${escapeHTML(s.school || '') || '-'}</td>
+          <td class="px-3 py-2">${escapeHTML(s.status || '') || '-'}</td>
+          <td class="px-3 py-2">${escapeHTML(formatClassList(s.classes)) || '-'}</td>
+          <td class="px-3 py-2">${escapeHTML(s.teacher || '') || '-'}</td>
           <td class="px-3 py-2">
             ${s.studentPhone ? `<a href="tel:${escapeHTML(s.studentPhone)}" class="text-blue-600 hover:underline">${escapeHTML(s.studentPhone)}</a>` : '-'}
           </td>
@@ -1148,6 +1719,24 @@
       updateStudentsList();
     }
 
+    function renderStudentClassTabs(classList) {
+      const container = document.getElementById('studentClassTabs');
+      if (!container) return;
+
+      const tabs = ['전체', ...classList];
+      container.innerHTML = tabs.map(name => {
+        const key = name === '전체' ? 'all' : name;
+        const active = key === studentClassFilter;
+        const btnClass = active ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700';
+        return `<button class="px-3 py-1 rounded-full text-sm ${btnClass}" onclick="setStudentClassFilter('${escapeJS(key)}')">${escapeHTML(name)}</button>`;
+      }).join('');
+    }
+
+    function setStudentClassFilter(value) {
+      studentClassFilter = value || 'all';
+      renderStudents();
+    }
+
     function updateStudentsList() {
       const datalist = document.getElementById('studentsList');
       if (!datalist) return;
@@ -1157,7 +1746,9 @@
       );
 
       datalist.innerHTML = allStudents.map(s => {
-        const info = `${s.name || ''} (${s.grade || ''})`;
+        const classInfo = formatClassList(s.classes);
+        const infoParts = [s.name || '', s.grade || '', s.school || '', classInfo].filter(Boolean);
+        const info = infoParts.join(' / ');
         return `<option value="${escapeHTML(s.name || '')}">${escapeHTML(info)}</option>`;
       }).join('');
     }
@@ -1177,8 +1768,13 @@
       if (student) {
         const info = [];
         if (student.grade) info.push(`${student.grade}`);
-        if (student.studentPhone) info.push(`원생: ${student.studentPhone}`);
-        if (student.parentPhone) info.push(`학부모: ${student.parentPhone}`);
+        if (student.school) info.push(`${student.school}`);
+        if (student.status) info.push(`상태: ${student.status}`);
+        const classInfo = formatClassList(student.classes);
+        if (classInfo) info.push(`수업: ${classInfo}`);
+        if (student.teacher) info.push(`담임강사: ${student.teacher}`);
+        if (student.studentPhone) info.push(`연락처: ${student.studentPhone}`);
+        if (student.parentPhone) info.push(`보호자연락처: ${student.parentPhone}`);
         infoEl.textContent = info.length ? info.join(' | ') : '';
       } else {
         infoEl.textContent = '';
@@ -1188,6 +1784,10 @@
     function addStudent() {
       const name = document.getElementById('studentName').value.trim();
       const grade = document.getElementById('studentGrade').value.trim();
+      const school = document.getElementById('studentSchool').value.trim();
+      const status = document.getElementById('studentStatus').value.trim();
+      const classes = parseClassList(document.getElementById('studentClasses').value);
+      const teacher = document.getElementById('studentTeacher').value.trim();
       const studentPhone = document.getElementById('studentPhone').value.trim();
       const parentPhone = document.getElementById('parentPhone').value.trim();
 
@@ -1198,10 +1798,14 @@
 
       const ref = db.ref('students');
       const newId = ref.push().key;
-      ref.child(newId).set({ name, grade, studentPhone, parentPhone })
+      ref.child(newId).set({ name, grade, school, status, classes, teacher, studentPhone, parentPhone })
         .then(() => {
           document.getElementById('studentName').value = '';
           document.getElementById('studentGrade').value = '';
+          document.getElementById('studentSchool').value = '';
+          document.getElementById('studentStatus').value = '';
+          document.getElementById('studentClasses').value = '';
+          document.getElementById('studentTeacher').value = '';
           document.getElementById('studentPhone').value = '';
           document.getElementById('parentPhone').value = '';
         })
@@ -1218,13 +1822,34 @@
       const grade = prompt('학년:', s.grade || '');
       if (grade === null) return;
 
-      const studentPhone = prompt('원생 연락처:', s.studentPhone || '');
+      const school = prompt('학교:', s.school || '');
+      if (school === null) return;
+
+      const status = prompt('상태:', s.status || '');
+      if (status === null) return;
+
+      const classes = prompt('수업(쉼표로 구분):', formatClassList(s.classes));
+      if (classes === null) return;
+
+      const teacher = prompt('담임강사:', s.teacher || '');
+      if (teacher === null) return;
+
+      const studentPhone = prompt('연락처:', s.studentPhone || '');
       if (studentPhone === null) return;
 
-      const parentPhone = prompt('보호자 연락처:', s.parentPhone || '');
+      const parentPhone = prompt('보호자연락처:', s.parentPhone || '');
       if (parentPhone === null) return;
 
-      db.ref('students/' + id).update({ name, grade, studentPhone, parentPhone })
+      db.ref('students/' + id).update({
+        name,
+        grade,
+        school,
+        status,
+        classes: parseClassList(classes),
+        teacher,
+        studentPhone,
+        parentPhone
+      })
         .catch(err => { console.error(err); alert('수정 실패'); });
     }
 
@@ -1233,6 +1858,198 @@
       if (!s || !confirm(`${s.name} 학생 정보를 삭제하시겠습니까?`)) return;
       db.ref('students/' + id).remove()
         .catch(err => { console.error(err); alert('삭제 실패'); });
+    }
+
+    function importStudentsFromExcel(event) {
+      const input = event.target;
+      const file = input.files && input.files[0];
+      if (!file) return;
+      if (!window.XLSX) {
+        alert('엑셀 라이브러리를 불러오지 못했습니다.');
+        input.value = '';
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const data = new Uint8Array(reader.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+          if (!rows.length) {
+            alert('엑셀에 데이터가 없습니다.');
+            return;
+          }
+
+          const header = rows[0].map(h => String(h).trim());
+          const required = ['수업명', '담임강사', '상태', '이름', '학년', '학교', '연락처', '보호자연락처'];
+          const missing = required.filter(name => !header.includes(name));
+          if (missing.length) {
+            alert(`엑셀 헤더가 올바르지 않습니다.\n필수: ${required.join(', ')}`);
+            return;
+          }
+
+          const idx = (name) => header.indexOf(name);
+          const nameToId = {};
+          const keyToId = {};
+          Object.entries(students || {}).forEach(([id, s]) => {
+            const key = (s.name || '').trim().toLowerCase();
+            if (key) nameToId[key] = id;
+            const phoneKey = (s.studentPhone || '').trim().toLowerCase();
+            if (key && phoneKey) {
+              keyToId[`${key}|${phoneKey}`] = id;
+            }
+          });
+
+          const tempNameToId = { ...nameToId };
+          const tempKeyToId = { ...keyToId };
+          const createdNames = new Set();
+          const incomingNames = new Set();
+          const incomingNameOnly = new Set();
+          const payload = {};
+          let createdCount = 0;
+          let updatedCount = 0;
+          let skippedCount = 0;
+
+          const incomingFullKeys = new Set();
+          const recordMap = {};
+
+          rows.slice(1).forEach(row => {
+            const name = String(row[idx('이름')] || '').trim();
+            if (!name) {
+              skippedCount += 1;
+              return;
+            }
+
+            const grade = String(row[idx('학년')] || '').trim();
+            const school = String(row[idx('학교')] || '').trim();
+            const status = String(row[idx('상태')] || '').trim();
+            const classes = parseClassList(row[idx('수업명')]);
+            const teacher = String(row[idx('담임강사')] || '').trim();
+            const studentPhone = String(row[idx('연락처')] || '').trim();
+            const parentPhone = String(row[idx('보호자연락처')] || '').trim();
+
+            const key = name.toLowerCase();
+            const phoneKey = studentPhone.toLowerCase();
+            const fullKey = phoneKey ? `${key}|${phoneKey}` : key;
+
+            if (!recordMap[fullKey]) {
+              recordMap[fullKey] = {
+                name,
+                grade: grade || '',
+                school: school || '',
+                status: status || '',
+                teacher: teacher || '',
+                studentPhone: studentPhone || '',
+                parentPhone: parentPhone || '',
+                classes: new Set()
+              };
+            }
+
+            const rec = recordMap[fullKey];
+            if (!rec.grade && grade) rec.grade = grade;
+            if (!rec.school && school) rec.school = school;
+            if (!rec.status && status) rec.status = status;
+            if (!rec.teacher && teacher) rec.teacher = teacher;
+            if (!rec.studentPhone && studentPhone) rec.studentPhone = studentPhone;
+            if (!rec.parentPhone && parentPhone) rec.parentPhone = parentPhone;
+            classes.forEach(c => rec.classes.add(c));
+          });
+
+          Object.values(recordMap).forEach(rec => {
+            const key = rec.name.toLowerCase();
+            const phoneKey = rec.studentPhone.toLowerCase();
+            const fullKey = phoneKey ? `${key}|${phoneKey}` : '';
+
+            incomingNames.add(key);
+            if (fullKey) incomingFullKeys.add(fullKey);
+            if (!phoneKey) incomingNameOnly.add(key);
+
+            let id = fullKey ? tempKeyToId[fullKey] : tempNameToId[key];
+            if (!id && fullKey && tempNameToId[key]) {
+              id = tempNameToId[key];
+              tempKeyToId[fullKey] = id;
+            }
+
+            const classes = Array.from(rec.classes);
+            if (!id) {
+              id = db.ref('students').push().key;
+              tempNameToId[key] = id;
+              if (fullKey) tempKeyToId[fullKey] = id;
+              createdNames.add(key);
+              createdCount += 1;
+              payload[id] = {
+                name: rec.name,
+                grade: rec.grade,
+                school: rec.school,
+                status: rec.status,
+                classes,
+                teacher: rec.teacher,
+                studentPhone: rec.studentPhone,
+                parentPhone: rec.parentPhone
+              };
+              return;
+            }
+
+            const update = { name: rec.name };
+            if (rec.grade) update.grade = rec.grade;
+            if (rec.school) update.school = rec.school;
+            if (rec.status) update.status = rec.status;
+            if (classes.length) update.classes = classes;
+            if (rec.teacher) update.teacher = rec.teacher;
+            if (rec.studentPhone) update.studentPhone = rec.studentPhone;
+            if (rec.parentPhone) update.parentPhone = rec.parentPhone;
+
+            if (Object.keys(update).length > 1 || !nameToId[key]) {
+              payload[id] = { ...(payload[id] || {}), ...update };
+              if (!createdNames.has(key)) updatedCount += 1;
+            }
+          });
+
+          const deletions = {};
+          Object.entries(students || {}).forEach(([id, s]) => {
+            const key = (s.name || '').trim().toLowerCase();
+            if (!key) return;
+            const phoneKey = (s.studentPhone || '').trim().toLowerCase();
+            const fullKey = phoneKey ? `${key}|${phoneKey}` : '';
+
+            if (fullKey) {
+              if (!incomingFullKeys.has(fullKey) && !incomingNameOnly.has(key)) {
+                deletions[id] = null;
+              }
+              return;
+            }
+
+            if (!incomingNames.has(key)) {
+              deletions[id] = null;
+            }
+          });
+          const deletedCount = Object.keys(deletions).length;
+          const combined = { ...payload, ...deletions };
+          if (!Object.keys(combined).length) {
+            alert('추가/변경할 학생 데이터가 없습니다.');
+            return;
+          }
+
+          db.ref('students').update(combined)
+            .then(() => {
+              alert(`엑셀 업로드 완료: 신규 ${createdCount}명, 업데이트 ${updatedCount}명, 삭제 ${deletedCount}명, 건너뜀 ${skippedCount}건`);
+            })
+            .catch(err => {
+              console.error(err);
+              alert('엑셀 업로드 실패');
+            });
+        } catch (err) {
+          console.error(err);
+          alert('엑셀 읽기 실패');
+        } finally {
+          input.value = '';
+        }
+      };
+
+      reader.readAsArrayBuffer(file);
     }
 
     // UI에서 호출하는 확인 함수
@@ -1365,20 +2182,24 @@
     }
 
     /* ===================== 알림 (단어시험 포함 확장) ===================== */
-    function updateNotificationPanel() {
-      const today = todayYMD();
+    function updateNotificationPanel(data) {
       const subjectLabel = {'math': '수학', 'english': '영어'};
-      const incompleteTasks = Object.values(dailyTasks).filter(t => !t.checked).map(t => `• ${escapeHTML(t.label)}`);
-      const todayRetests = Object.values(retestStudents||{}).filter(s => s.date === today).map(s => `• ${escapeHTML(s.name)} (${escapeHTML(s.subject||'')}${s.time? ' '+escapeHTML(s.time):''})`);
-      const todayTutoring = Object.values(tutoringSessions||{}).filter(s => s.date === today).map(s => `• [${subjectLabel[s.subject]||s.subject}] ${escapeHTML(s.name)} ${s.time? escapeHTML(s.time):''} ${s.topic? '('+escapeHTML(s.topic)+')':''}`);
-      const incompleteTyping = Object.values(typingTasks).filter(t => !t.completed).map(t => `• ${escapeHTML(t.task)}`);
-      const todayVocabEvents = Object.values(vocab.events||{}).filter(e => e.date === today).map(e => `• ${escapeHTML(e.student)} (${e.rangeStart}–${e.rangeEnd})`);
+      const incompleteTasks = data.incompleteTasks.map(t => `• ${escapeHTML(t.label)}`);
+      const todayRetests = data.todayRetests.map(s => `• ${escapeHTML(s.name)} (${escapeHTML(s.subject||'')}${s.time? ' '+escapeHTML(s.time):''})`);
+      const todayTutoring = data.todayTutoring.map(s => `• [${subjectLabel[s.subject]||s.subject}] ${escapeHTML(s.name)} ${s.time? escapeHTML(s.time):''} ${s.topic? '('+escapeHTML(s.topic)+')':''}`);
+      const incompleteTyping = data.incompleteTyping.map(t => `• ${escapeHTML(t.task)}`);
+      const todayVocabEvents = data.todayVocabEvents.map(e => `• ${escapeHTML(e.student)} (${e.rangeStart}–${e.rangeEnd})`);
+      const urgentHomework = (data.urgentHomework||[]).map(hw => {
+        const isOverdue = hw.dueDate < todayYMD();
+        return `• ${isOverdue ? '⚠️ ' : ''}${escapeHTML(hw.studentName)}: ${escapeHTML(hw.title)}`;
+      });
 
       const sections = [];
       if (incompleteTasks.length) sections.push(`<h4 class="font-semibold mb-1">미완료 체크리스트</h4><div class="mb-2">${incompleteTasks.join('<br>')}</div>`);
       if (todayRetests.length) sections.push(`<h4 class="font-semibold mb-1">오늘 재시험</h4><div class="mb-2">${todayRetests.join('<br>')}</div>`);
-      if (todayTutoring.length) sections.push(`<h4 class="font-semibold mb-1">오늘 과목별 보강</h4><div class="mb-2">${todayTutoring.join('<br>')}</div>`);
+      if (todayTutoring.length) sections.push(`<h4 class="font-semibold mb-1">오늘 미완료 보강</h4><div class="mb-2">${todayTutoring.join('<br>')}</div>`);
       if (todayVocabEvents.length) sections.push(`<h4 class="font-semibold mb-1">오늘 단어시험</h4><div class="mb-2">${todayVocabEvents.join('<br>')}</div>`);
+      if (urgentHomework.length) sections.push(`<h4 class="font-semibold mb-1">📝 마감 숙제</h4><div class="mb-2">${urgentHomework.join('<br>')}</div>`);
       if (incompleteTyping.length) sections.push(`<h4 class="font-semibold mb-1">타이핑 업무</h4><div>${incompleteTyping.join('<br>')}</div>`);
 
       document.getElementById('notificationContent').innerHTML = sections.join('<hr class="my-3">') || '알림 없음';
@@ -1389,13 +2210,30 @@
         document.getElementById('notificationBadge').style.display = 'none';
         return;
       }
-      const incompleteTasks = Object.values(dailyTasks).filter(t => !t.checked).length;
-      const todayRetests = Object.values(retestStudents||{}).filter(s => s.date === today).length;
-      const todayTutoring = Object.values(tutoringSessions||{}).filter(s => s.date === today).length;
-      const incompleteTyping = Object.values(typingTasks).filter(t => !t.completed).length;
-      const todayVocabEvents = Object.values(vocab.events||{}).filter(e => e.date === today).length;
 
-      const total = incompleteTasks + todayRetests + todayTutoring + incompleteTyping + todayVocabEvents;
+      // 한 번만 필터링하여 성능 최적화
+      const incompleteTasks = Object.values(dailyTasks).filter(t => !t.checked);
+      const todayRetests = Object.values(retestStudents||{}).filter(s => s.date === today);
+      const todayTutoring = Object.values(tutoringSessions||{}).filter(s => s.date === today && !s.completed); // 미완료만
+      const incompleteTyping = Object.values(typingTasks).filter(t => !t.completed);
+      const todayVocabEvents = Object.values(vocab.events||{}).filter(e => e.date === today);
+      // 오늘 마감 또는 기한 초과 숙제 (미완료만)
+      const urgentHomework = Object.values(homework||{}).filter(hw => !hw.completed && hw.dueDate && hw.dueDate <= today);
+
+      // 과거 미완료 항목도 포함
+      let pastDailyCount = 0;
+      let pastTypingCount = 0;
+      for (const date in pastIncompleteDailyTasks) {
+        pastDailyCount += Object.keys(pastIncompleteDailyTasks[date]).length;
+      }
+      for (const date in pastIncompleteTypingTasks) {
+        pastTypingCount += Object.keys(pastIncompleteTypingTasks[date]).length;
+      }
+
+      const total = incompleteTasks.length + todayRetests.length + todayTutoring.length +
+                    incompleteTyping.length + todayVocabEvents.length +
+                    urgentHomework.length +
+                    pastDailyCount + pastTypingCount;
 
       if (total > 0) {
         document.getElementById('notificationBadge').style.display = 'flex';
@@ -1403,7 +2241,16 @@
       } else {
         document.getElementById('notificationBadge').style.display = 'none';
       }
-      updateNotificationPanel();
+
+      // 필터링된 데이터를 전달하여 중복 필터링 방지
+      updateNotificationPanel({
+        incompleteTasks,
+        todayRetests,
+        todayTutoring,
+        incompleteTyping,
+        todayVocabEvents,
+        urgentHomework
+      });
     }
 
     /* ===================== CRUD (체크리스트 등) ===================== */
@@ -1422,16 +2269,62 @@
     }
     function toggleTask(id) {
       const cur = dailyTasks[id]; if (!cur) return;
-      db.ref(`daily/${currentViewDate}/${id}/checked`).set(!cur.checked).catch(err => console.error('태스크 토글 실패:', err));
+      db.ref(`daily/${currentViewDate}/${id}/checked`).set(!cur.checked).then(() => {
+        // 과거 날짜에서 완료 처리한 경우 pastIncompleteDailyTasks에서도 제거
+        if (!cur.checked && pastIncompleteDailyTasks[currentViewDate] && pastIncompleteDailyTasks[currentViewDate][id]) {
+          delete pastIncompleteDailyTasks[currentViewDate][id];
+          if (Object.keys(pastIncompleteDailyTasks[currentViewDate]).length === 0) {
+            delete pastIncompleteDailyTasks[currentViewDate];
+          }
+          renderDailyTasks();
+          checkNotifications();
+        }
+      }).catch(err => console.error('태스크 토글 실패:', err));
     }
     function deleteTask(id) {
-      db.ref(`daily/${currentViewDate}/${id}`).remove().catch(err => console.error('태스크 삭제 실패:', err));
+      db.ref(`daily/${currentViewDate}/${id}`).remove().then(() => {
+        // 과거 날짜에서 삭제한 경우 pastIncompleteDailyTasks에서도 제거
+        if (pastIncompleteDailyTasks[currentViewDate] && pastIncompleteDailyTasks[currentViewDate][id]) {
+          delete pastIncompleteDailyTasks[currentViewDate][id];
+          if (Object.keys(pastIncompleteDailyTasks[currentViewDate]).length === 0) {
+            delete pastIncompleteDailyTasks[currentViewDate];
+          }
+          renderDailyTasks();
+          checkNotifications();
+        }
+      }).catch(err => console.error('태스크 삭제 실패:', err));
     }
     function openNoteEditor(id) {
       const cur = dailyTasks[id]; if (!cur) return;
       const newNote = prompt('메모/내용을 입력하세요:', cur.note || '');
       if (newNote === null) return;
       db.ref(`daily/${currentViewDate}/${id}/note`).set(newNote).catch(err => console.error('메모 저장 실패:', err));
+    }
+    // 과거 항목 조작 함수
+    function togglePastTask(date, id) {
+      db.ref(`daily/${date}/${id}/checked`).set(true).then(() => {
+        // 완료로 표시되면 과거 미완료 항목에서 제거
+        if (pastIncompleteDailyTasks[date] && pastIncompleteDailyTasks[date][id]) {
+          delete pastIncompleteDailyTasks[date][id];
+          if (Object.keys(pastIncompleteDailyTasks[date]).length === 0) {
+            delete pastIncompleteDailyTasks[date];
+          }
+          renderDailyTasks();
+          checkNotifications();
+        }
+      }).catch(err => console.error('과거 태스크 토글 실패:', err));
+    }
+    function deletePastTask(date, id) {
+      db.ref(`daily/${date}/${id}`).remove().then(() => {
+        if (pastIncompleteDailyTasks[date] && pastIncompleteDailyTasks[date][id]) {
+          delete pastIncompleteDailyTasks[date][id];
+          if (Object.keys(pastIncompleteDailyTasks[date]).length === 0) {
+            delete pastIncompleteDailyTasks[date];
+          }
+          renderDailyTasks();
+          checkNotifications();
+        }
+      }).catch(err => console.error('과거 태스크 삭제 실패:', err));
     }
 
     // korean
@@ -1483,10 +2376,56 @@
     }
     function toggleTypingComplete(id) {
       const cur = typingTasks[id]; if (!cur) return;
-      db.ref(`typing/${currentViewDate}/${id}/completed`).set(!cur.completed).catch(err => console.error('타이핑 완료 토글 실패:', err));
+      db.ref(`typing/${currentViewDate}/${id}/completed`).set(!cur.completed).then(() => {
+        // 과거 날짜에서 완료 처리한 경우 pastIncompleteTypingTasks에서도 제거
+        if (!cur.completed && pastIncompleteTypingTasks[currentViewDate] && pastIncompleteTypingTasks[currentViewDate][id]) {
+          delete pastIncompleteTypingTasks[currentViewDate][id];
+          if (Object.keys(pastIncompleteTypingTasks[currentViewDate]).length === 0) {
+            delete pastIncompleteTypingTasks[currentViewDate];
+          }
+          renderTyping();
+          checkNotifications();
+        }
+      }).catch(err => console.error('타이핑 완료 토글 실패:', err));
     }
     function deleteTyping(id) {
-      db.ref(`typing/${currentViewDate}/${id}`).remove().catch(err => console.error('타이핑 삭제 실패:', err));
+      db.ref(`typing/${currentViewDate}/${id}`).remove().then(() => {
+        // 과거 날짜에서 삭제한 경우 pastIncompleteTypingTasks에서도 제거
+        if (pastIncompleteTypingTasks[currentViewDate] && pastIncompleteTypingTasks[currentViewDate][id]) {
+          delete pastIncompleteTypingTasks[currentViewDate][id];
+          if (Object.keys(pastIncompleteTypingTasks[currentViewDate]).length === 0) {
+            delete pastIncompleteTypingTasks[currentViewDate];
+          }
+          renderTyping();
+          checkNotifications();
+        }
+      }).catch(err => console.error('타이핑 삭제 실패:', err));
+    }
+    // 과거 타이핑 항목 조작 함수
+    function togglePastTypingComplete(date, id) {
+      db.ref(`typing/${date}/${id}/completed`).set(true).then(() => {
+        // 완료로 표시되면 과거 미완료 항목에서 제거
+        if (pastIncompleteTypingTasks[date] && pastIncompleteTypingTasks[date][id]) {
+          delete pastIncompleteTypingTasks[date][id];
+          if (Object.keys(pastIncompleteTypingTasks[date]).length === 0) {
+            delete pastIncompleteTypingTasks[date];
+          }
+          renderTyping();
+          checkNotifications();
+        }
+      }).catch(err => console.error('과거 타이핑 완료 토글 실패:', err));
+    }
+    function deletePastTyping(date, id) {
+      db.ref(`typing/${date}/${id}`).remove().then(() => {
+        if (pastIncompleteTypingTasks[date] && pastIncompleteTypingTasks[date][id]) {
+          delete pastIncompleteTypingTasks[date][id];
+          if (Object.keys(pastIncompleteTypingTasks[date]).length === 0) {
+            delete pastIncompleteTypingTasks[date];
+          }
+          renderTyping();
+          checkNotifications();
+        }
+      }).catch(err => console.error('과거 타이핑 삭제 실패:', err));
     }
 
     // 과목별 보강 (전역)
@@ -1500,7 +2439,18 @@
       if (!name) return;
       const ref = db.ref('tutoringSessions');
       const key = ref.push().key;
-      const item = { id: key, subject, name, time, topic, range, note, date: currentViewDate };
+      const item = {
+        id: key,
+        subject,
+        name,
+        time,
+        topic,
+        range,
+        note,
+        date: currentViewDate,
+        completed: false,
+        completedDetails: ''
+      };
       ref.child(key).set(item).catch(err => console.error('보강 추가 실패:', err));
       document.getElementById('tutoringName').value = '';
       document.getElementById('tutoringTime').value = '';
@@ -1510,6 +2460,20 @@
     }
     function deleteTutoring(id) {
       db.ref(`tutoringSessions/${id}`).remove().catch(err => console.error('보강 삭제 실패:', err));
+    }
+
+    function toggleTutoringCompleted(id) {
+      const session = tutoringSessions[id];
+      if (!session) return;
+      db.ref(`tutoringSessions/${id}/completed`).set(!session.completed)
+        .catch(err => console.error('보강 완료 상태 변경 실패:', err));
+    }
+
+    function updateTutoringDetails(id) {
+      const details = prompt('보강 내용을 입력하세요:', tutoringSessions[id]?.completedDetails || '');
+      if (details === null) return; // 취소
+      db.ref(`tutoringSessions/${id}/completedDetails`).set(details)
+        .catch(err => console.error('보강 내용 저장 실패:', err));
     }
 
     // 재시험(전역)
@@ -1534,6 +2498,806 @@
     }
     function deleteRetest(id) {
       db.ref(`retest/${id}`).remove().catch(err => console.error('재시험 삭제 실패:', err));
+    }
+
+    // ===================== 숙제 관리 =====================
+    let classStatusFilter = 'all';
+    let currentKakaoMessage = '';
+
+    function toggleHomeworkForm() {
+      const form = document.getElementById('homeworkFormSection');
+      form.style.display = form.style.display === 'none' ? 'block' : 'none';
+      if (form.style.display === 'block') {
+        document.getElementById('hwDueDate').value = addDays(todayYMD(), 2); // 기본 마감일: 2일 후
+        populateHomeworkClassSelect();
+      }
+    }
+
+    function toggleClassesModal() {
+      const backdrop = document.getElementById('classesModalBackdrop');
+      const modal = document.getElementById('classesModal');
+      const isOpen = modal.style.display === 'block';
+      backdrop.style.display = isOpen ? 'none' : 'block';
+      modal.style.display = isOpen ? 'none' : 'block';
+      if (!isOpen) renderClasses();
+    }
+
+    function toggleKakaoMessageModal() {
+      const backdrop = document.getElementById('kakaoMessageBackdrop');
+      const modal = document.getElementById('kakaoMessageModal');
+      const isOpen = modal.style.display === 'block';
+      backdrop.style.display = isOpen ? 'none' : 'block';
+      modal.style.display = isOpen ? 'none' : 'block';
+    }
+
+    let hwMode = 'individual'; // 'individual' or 'bulk'
+
+    function populateHomeworkClassSelect() {
+      const select = document.getElementById('hwClassSelect');
+      const bulkSelect = document.getElementById('hwBulkClassSelect');
+      const filterSelect = document.getElementById('homeworkClassFilterSelect');
+      const activeClasses = Object.entries(classes).filter(([id, c]) => c.status !== 'ended');
+
+      // 숙제 추가 폼의 수업 선택 (개별)
+      let html = '<option value="">수업 선택</option>';
+      activeClasses.forEach(([id, c]) => {
+        html += `<option value="${id}">${escapeHTML(c.name)}</option>`;
+      });
+      select.innerHTML = html;
+
+      // 숙제 추가 폼의 수업 선택 (일괄)
+      let bulkHtml = '<option value="">수업 선택 (필수)</option>';
+      activeClasses.forEach(([id, c]) => {
+        bulkHtml += `<option value="${id}">${escapeHTML(c.name)}</option>`;
+      });
+      bulkSelect.innerHTML = bulkHtml;
+
+      // 필터 드롭다운의 수업 선택
+      let filterHtml = '<option value="all">전체 수업</option>';
+      Object.entries(classes).forEach(([id, c]) => {
+        filterHtml += `<option value="${id}">${escapeHTML(c.name)}${c.status === 'ended' ? ' (종강)' : ''}</option>`;
+      });
+      filterSelect.innerHTML = filterHtml;
+      filterSelect.value = homeworkClassFilter;
+
+      // 학생 목록 초기화
+      updateHwStudentsList();
+    }
+
+    // 숙제 등록 모드 전환 (개별/일괄)
+    function setHwMode(mode) {
+      hwMode = mode;
+      const individualMode = document.getElementById('hwIndividualMode');
+      const bulkMode = document.getElementById('hwBulkMode');
+      const addBtn = document.getElementById('hwAddBtn');
+      const bulkAddBtn = document.getElementById('hwBulkAddBtn');
+      const modeIndividualBtn = document.getElementById('hwModeIndividual');
+      const modeBulkBtn = document.getElementById('hwModeBulk');
+
+      if (mode === 'individual') {
+        individualMode.style.display = 'block';
+        bulkMode.style.display = 'none';
+        addBtn.style.display = 'block';
+        bulkAddBtn.style.display = 'none';
+        modeIndividualBtn.className = 'px-4 py-2 rounded-lg bg-indigo-600 text-white';
+        modeBulkBtn.className = 'px-4 py-2 rounded-lg bg-gray-200 text-gray-700';
+      } else {
+        individualMode.style.display = 'none';
+        bulkMode.style.display = 'block';
+        addBtn.style.display = 'none';
+        bulkAddBtn.style.display = 'block';
+        modeIndividualBtn.className = 'px-4 py-2 rounded-lg bg-gray-200 text-gray-700';
+        modeBulkBtn.className = 'px-4 py-2 rounded-lg bg-indigo-600 text-white';
+      }
+    }
+
+    // 일괄 모드: 수업 선택 시 학생 목록 미리보기
+    function onHwBulkClassChange() {
+      const classId = document.getElementById('hwBulkClassSelect').value;
+      const preview = document.getElementById('hwBulkStudentPreview');
+
+      if (!classId) {
+        preview.innerHTML = '<span class="text-gray-500">수업을 선택하면 해당 학생 목록이 표시됩니다</span>';
+        return;
+      }
+
+      const className = classes[classId]?.name || '';
+      const classStudents = getStudentsByClass(className);
+
+      if (classStudents.length === 0) {
+        preview.innerHTML = '<span class="text-orange-600">⚠️ 해당 수업에 등록된 학생이 없습니다</span>';
+        return;
+      }
+
+      preview.innerHTML = `
+        <div class="font-semibold text-green-700 mb-1">✅ ${classStudents.length}명에게 숙제가 등록됩니다:</div>
+        <div class="flex flex-wrap gap-1">
+          ${classStudents.map(s => `<span class="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">${escapeHTML(s.name)}</span>`).join('')}
+        </div>
+      `;
+    }
+
+    // 수업명으로 학생 목록 가져오기
+    function getStudentsByClass(className) {
+      if (!className) return [];
+      return Object.values(students).filter(s => {
+        const studentClasses = parseClassList(s.classes);
+        return studentClasses.some(c => c.includes(className) || className.includes(c));
+      });
+    }
+
+    // 반 전체 일괄 숙제 추가
+    function addBulkHomework() {
+      const classId = document.getElementById('hwBulkClassSelect').value;
+      const title = document.getElementById('hwBulkTitle').value.trim();
+      const textbook = document.getElementById('hwTextbook').value.trim();
+      const pageRange = document.getElementById('hwPageRange').value.trim();
+      const dueDate = document.getElementById('hwDueDate').value;
+      const description = document.getElementById('hwDescription').value.trim();
+
+      if (!classId || !title || !dueDate) {
+        alert('수업, 숙제 내용, 마감일은 필수입니다.');
+        return;
+      }
+
+      const classInfo = classes[classId] || {};
+      const className = classInfo.name || '';
+      const subject = classInfo.subject || '';
+      const classStudents = getStudentsByClass(className);
+
+      if (classStudents.length === 0) {
+        alert('해당 수업에 등록된 학생이 없습니다.');
+        return;
+      }
+
+      if (!confirm(`${className} 수업의 ${classStudents.length}명 학생에게 숙제를 등록하시겠습니까?\n\n숙제: ${title}\n마감일: ${dueDate}`)) {
+        return;
+      }
+
+      const ref = db.ref('homework');
+      const batch = {};
+
+      classStudents.forEach(student => {
+        const key = ref.push().key;
+        batch[key] = {
+          id: key,
+          classId,
+          className,
+          subject,
+          studentId: Object.keys(students).find(id => students[id].name === student.name) || '',
+          studentName: student.name,
+          title,
+          description,
+          textbook,
+          pageRange,
+          assignedDate: todayYMD(),
+          dueDate,
+          completed: false,
+          completedAt: null,
+          feedback: '',
+          notificationSent: false,
+          notificationSentAt: null
+        };
+      });
+
+      ref.update(batch)
+        .then(() => {
+          alert(`${classStudents.length}명에게 숙제가 등록되었습니다.`);
+          document.getElementById('hwBulkTitle').value = '';
+          document.getElementById('hwTextbook').value = '';
+          document.getElementById('hwPageRange').value = '';
+          document.getElementById('hwDescription').value = '';
+          toggleHomeworkForm();
+        })
+        .catch(err => { console.error('일괄 숙제 추가 실패:', err); alert('일괄 숙제 추가 실패'); });
+    }
+
+    // 수업 선택 시 해당 수업 학생만 필터링
+    function onHwClassChange() {
+      updateHwStudentsList();
+      // 수업 변경 시 학생 입력 초기화
+      document.getElementById('hwStudentName').value = '';
+      document.getElementById('hwStudentInfo').innerHTML = '';
+    }
+
+    // 학생 목록 업데이트 (선택된 수업에 따라 필터링)
+    function updateHwStudentsList() {
+      const datalist = document.getElementById('hwStudentsList');
+      const selectedClassId = document.getElementById('hwClassSelect').value;
+      const selectedClassName = selectedClassId ? (classes[selectedClassId]?.name || '') : '';
+
+      let filteredStudents = Object.entries(students);
+
+      // 수업이 선택된 경우 해당 수업 학생만 필터링
+      if (selectedClassName) {
+        filteredStudents = filteredStudents.filter(([id, s]) => {
+          const studentClasses = parseClassList(s.classes);
+          return studentClasses.some(c => c.includes(selectedClassName) || selectedClassName.includes(c));
+        });
+      }
+
+      // datalist 업데이트
+      let html = '';
+      filteredStudents.forEach(([id, s]) => {
+        const classInfo = formatClassList(s.classes);
+        html += `<option value="${escapeHTML(s.name)}">${classInfo ? `(${escapeHTML(classInfo)})` : ''}</option>`;
+      });
+      datalist.innerHTML = html;
+    }
+
+    // 학생 선택 시 수업 자동 선택
+    function onHwStudentChange(studentName) {
+      showStudentInfo(studentName, 'hwStudentInfo');
+
+      // 학생 찾기
+      const student = Object.values(students).find(s => s.name === studentName);
+      if (!student) return;
+
+      // 학생의 수업 목록 가져오기
+      const studentClasses = parseClassList(student.classes);
+      if (studentClasses.length === 0) return;
+
+      // 현재 선택된 수업이 없거나 학생의 수업과 맞지 않으면 자동 선택
+      const classSelect = document.getElementById('hwClassSelect');
+      const currentClassId = classSelect.value;
+      const currentClassName = currentClassId ? (classes[currentClassId]?.name || '') : '';
+
+      // 학생의 수업 중 하나라도 현재 선택과 일치하면 유지
+      const matchesCurrent = studentClasses.some(c => c.includes(currentClassName) || currentClassName.includes(c));
+      if (matchesCurrent && currentClassId) return;
+
+      // 첫 번째 일치하는 수업 자동 선택
+      for (const [classId, classInfo] of Object.entries(classes)) {
+        if (classInfo.status === 'ended') continue;
+        const match = studentClasses.some(sc => sc.includes(classInfo.name) || classInfo.name.includes(sc));
+        if (match) {
+          classSelect.value = classId;
+          break;
+        }
+      }
+    }
+
+    function setHomeworkClassFilter(value) {
+      homeworkClassFilter = value;
+      renderHomework();
+    }
+
+    function setHomeworkStatusFilter(value) {
+      homeworkStatusFilter = value;
+      renderHomework();
+    }
+
+    function setClassStatusFilter(status) {
+      classStatusFilter = status;
+      document.getElementById('classStatusAll').className = status === 'all' ? 'px-3 py-1 rounded bg-indigo-600 text-white text-sm' : 'px-3 py-1 rounded bg-gray-200 text-gray-700 text-sm';
+      document.getElementById('classStatusActive').className = status === 'active' ? 'px-3 py-1 rounded bg-indigo-600 text-white text-sm' : 'px-3 py-1 rounded bg-gray-200 text-gray-700 text-sm';
+      document.getElementById('classStatusEnded').className = status === 'ended' ? 'px-3 py-1 rounded bg-indigo-600 text-white text-sm' : 'px-3 py-1 rounded bg-gray-200 text-gray-700 text-sm';
+      renderClasses();
+    }
+
+    function addHomework() {
+      const classId = document.getElementById('hwClassSelect').value;
+      const studentName = document.getElementById('hwStudentName').value.trim();
+      const title = document.getElementById('hwTitle').value.trim();
+      const textbook = document.getElementById('hwTextbook').value.trim();
+      const pageRange = document.getElementById('hwPageRange').value.trim();
+      const dueDate = document.getElementById('hwDueDate').value;
+      const description = document.getElementById('hwDescription').value.trim();
+
+      if (!studentName || !title || !dueDate) {
+        alert('학생 이름, 숙제 내용, 마감일은 필수입니다.');
+        return;
+      }
+
+      // 학생 ID 찾기
+      let studentId = '';
+      for (const [id, s] of Object.entries(students)) {
+        if (s.name === studentName) {
+          studentId = id;
+          break;
+        }
+      }
+
+      // 수업 정보 가져오기
+      const classInfo = classes[classId] || {};
+      const className = classInfo.name || '';
+      const subject = classInfo.subject || '';
+
+      const ref = db.ref('homework');
+      const key = ref.push().key;
+      const item = {
+        id: key,
+        classId: classId || '',
+        className,
+        subject,
+        studentId,
+        studentName,
+        title,
+        description,
+        textbook,
+        pageRange,
+        assignedDate: todayYMD(),
+        dueDate,
+        completed: false,
+        completedAt: null,
+        feedback: '',
+        notificationSent: false,
+        notificationSentAt: null
+      };
+
+      ref.child(key).set(item)
+        .then(() => {
+          document.getElementById('hwStudentName').value = '';
+          document.getElementById('hwTitle').value = '';
+          document.getElementById('hwTextbook').value = '';
+          document.getElementById('hwPageRange').value = '';
+          document.getElementById('hwDescription').value = '';
+          toggleHomeworkForm();
+        })
+        .catch(err => { console.error('숙제 추가 실패:', err); alert('숙제 추가 실패'); });
+    }
+
+    function toggleHomeworkComplete(id) {
+      const hw = homework[id];
+      if (!hw) return;
+      const updates = {
+        completed: !hw.completed,
+        completedAt: !hw.completed ? new Date().toISOString() : null
+      };
+      db.ref(`homework/${id}`).update(updates).catch(err => console.error('숙제 완료 토글 실패:', err));
+    }
+
+    function deleteHomework(id) {
+      const hw = homework[id];
+      if (!hw || !confirm(`${hw.studentName}의 숙제 "${hw.title}"을(를) 삭제하시겠습니까?`)) return;
+      db.ref(`homework/${id}`).remove().catch(err => console.error('숙제 삭제 실패:', err));
+    }
+
+    function addHomeworkFeedback(id) {
+      const hw = homework[id];
+      if (!hw) return;
+      const feedback = prompt('피드백을 입력하세요:', hw.feedback || '');
+      if (feedback === null) return;
+      db.ref(`homework/${id}/feedback`).set(feedback).catch(err => console.error('피드백 저장 실패:', err));
+    }
+
+    function renderHomework() {
+      const container = document.getElementById('homeworkList');
+      const today = todayYMD();
+
+      // 필터링
+      let filtered = Object.entries(homework);
+
+      if (homeworkClassFilter !== 'all') {
+        filtered = filtered.filter(([id, hw]) => hw.classId === homeworkClassFilter);
+      }
+
+      if (homeworkStatusFilter === 'incomplete') {
+        filtered = filtered.filter(([id, hw]) => !hw.completed);
+      } else if (homeworkStatusFilter === 'completed') {
+        filtered = filtered.filter(([id, hw]) => hw.completed);
+      } else if (homeworkStatusFilter === 'overdue') {
+        filtered = filtered.filter(([id, hw]) => !hw.completed && hw.dueDate < today);
+      }
+
+      // 정렬: 미완료 먼저, 마감일 순
+      filtered.sort((a, b) => {
+        if (a[1].completed !== b[1].completed) return a[1].completed ? 1 : -1;
+        return (a[1].dueDate || '').localeCompare(b[1].dueDate || '');
+      });
+
+      // 마감일 기준으로 그룹화
+      const groups = {};
+      filtered.forEach(([id, hw]) => {
+        const key = hw.dueDate || '날짜 미지정';
+        if (!groups[key]) groups[key] = [];
+        groups[key].push({ id, ...hw });
+      });
+
+      document.getElementById('homeworkCount').textContent = filtered.length;
+
+      // 오늘 마감 배지
+      const todayDue = Object.values(homework).filter(hw => hw.dueDate === today && !hw.completed).length;
+      const badge = document.getElementById('todayHomeworkBadge');
+      if (todayDue > 0) {
+        badge.style.display = 'inline';
+        badge.textContent = `오늘 마감 ${todayDue}개`;
+      } else {
+        badge.style.display = 'none';
+      }
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div class="text-center text-gray-500 py-8">등록된 숙제가 없습니다.</div>';
+        return;
+      }
+
+      let html = '';
+      const sortedDates = Object.keys(groups).sort();
+
+      sortedDates.forEach(date => {
+        const isToday = date === today;
+        const isOverdue = date < today;
+        const dateLabel = date === '날짜 미지정' ? date : formatDateKorean(date);
+        const bgClass = isOverdue ? 'bg-red-50 border-red-300' : (isToday ? 'bg-orange-50 border-orange-300' : 'bg-gray-50 border-gray-200');
+        const labelClass = isOverdue ? 'text-red-600' : (isToday ? 'text-orange-600' : 'text-gray-700');
+
+        html += `<div class="border-2 ${bgClass} rounded-xl p-4 mb-3">
+          <h3 class="font-bold ${labelClass} mb-3">${isOverdue ? '⚠️ 기한 초과: ' : (isToday ? '🔔 오늘 마감: ' : '')}${dateLabel}</h3>
+          <div class="space-y-2">`;
+
+        groups[date].forEach(hw => {
+          const completedClass = hw.completed ? 'bg-gray-100 opacity-70' : 'bg-white';
+          const textClass = hw.completed ? 'line-through text-gray-500' : '';
+          const subjectBadge = hw.subject ? `<span class="text-xs px-2 py-0.5 rounded-full ${hw.subject === '수학' ? 'bg-purple-100 text-purple-700' : (hw.subject === '영어' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700')}">${escapeHTML(hw.subject)}</span>` : '';
+
+          html += `<div class="flex items-center gap-3 p-3 ${completedClass} rounded-lg border">
+            <button onclick="toggleHomeworkComplete('${hw.id}')" class="text-2xl ${hw.completed ? 'text-green-600' : 'text-gray-300 hover:text-green-500'}">${hw.completed ? '✅' : '⭕'}</button>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="font-semibold ${textClass}">${escapeHTML(hw.studentName)}</span>
+                ${subjectBadge}
+                ${hw.className ? `<span class="text-xs text-gray-500">${escapeHTML(hw.className)}</span>` : ''}
+              </div>
+              <div class="text-sm ${textClass}">${escapeHTML(hw.title)}</div>
+              ${hw.textbook || hw.pageRange ? `<div class="text-xs text-gray-500">${escapeHTML(hw.textbook || '')} ${escapeHTML(hw.pageRange || '')}</div>` : ''}
+              ${hw.description ? `<div class="text-xs text-gray-400 mt-1">${escapeHTML(hw.description)}</div>` : ''}
+              ${hw.feedback ? `<div class="text-xs text-blue-600 bg-blue-50 rounded px-2 py-1 mt-1">💬 ${escapeHTML(hw.feedback)}</div>` : ''}
+              ${hw.notificationSent ? `<div class="text-xs text-green-600 mt-1">✉️ 알림 발송됨</div>` : ''}
+            </div>
+            <div class="flex gap-1 flex-shrink-0">
+              <button onclick="openKakaoMessage('${hw.id}')" class="px-2 py-1 text-xs bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200" title="알림톡">📱</button>
+              <button onclick="addHomeworkFeedback('${hw.id}')" class="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200" title="피드백">💬</button>
+              <button onclick="deleteHomework('${hw.id}')" class="delete-btn text-gray-400 hover:text-red-500" title="삭제">✕</button>
+            </div>
+          </div>`;
+        });
+
+        html += '</div></div>';
+      });
+
+      container.innerHTML = html;
+    }
+
+    // ===================== 수업 관리 =====================
+    function addClass() {
+      const name = document.getElementById('newClassName').value.trim();
+      const subject = document.getElementById('newClassSubject').value;
+      const teacher = document.getElementById('newClassTeacher').value.trim();
+      const schedule = document.getElementById('newClassSchedule').value.trim();
+
+      if (!name) {
+        alert('수업명을 입력해주세요.');
+        return;
+      }
+
+      const ref = db.ref('classes');
+      const key = ref.push().key;
+      const item = {
+        id: key,
+        name,
+        subject,
+        teacher,
+        status: 'active',
+        schedule,
+        createdAt: todayYMD(),
+        endedAt: null,
+        autoExtracted: false
+      };
+
+      ref.child(key).set(item)
+        .then(() => {
+          document.getElementById('newClassName').value = '';
+          document.getElementById('newClassTeacher').value = '';
+          document.getElementById('newClassSchedule').value = '';
+        })
+        .catch(err => { console.error('수업 추가 실패:', err); alert('수업 추가 실패'); });
+    }
+
+    function endClass(id) {
+      const c = classes[id];
+      if (!c) return;
+      const newStatus = c.status === 'ended' ? 'active' : 'ended';
+      const updates = {
+        status: newStatus,
+        endedAt: newStatus === 'ended' ? todayYMD() : null
+      };
+      db.ref(`classes/${id}`).update(updates).catch(err => console.error('수업 상태 변경 실패:', err));
+    }
+
+    function deleteClass(id) {
+      const c = classes[id];
+      if (!c || !confirm(`"${c.name}" 수업을 삭제하시겠습니까?\n관련 숙제는 삭제되지 않습니다.`)) return;
+      db.ref(`classes/${id}`).remove().catch(err => console.error('수업 삭제 실패:', err));
+    }
+
+    function extractClassesFromStudents() {
+      // 학생 데이터에서 수업명 추출
+      const classNames = new Set();
+      Object.values(students).forEach(s => {
+        if (s.classes && Array.isArray(s.classes)) {
+          s.classes.forEach(c => classNames.add(c));
+        } else if (s.classes) {
+          parseClassList(s.classes).forEach(c => classNames.add(c));
+        }
+      });
+
+      if (classNames.size === 0) {
+        alert('학생 데이터에서 수업을 찾을 수 없습니다.');
+        return;
+      }
+
+      // 기존 수업명 목록
+      const existingNames = new Set(Object.values(classes).map(c => c.name));
+
+      // 새로운 수업만 추가
+      const newClasses = [...classNames].filter(name => !existingNames.has(name));
+
+      if (newClasses.length === 0) {
+        alert('추가할 새 수업이 없습니다. (모두 이미 등록됨)');
+        return;
+      }
+
+      if (!confirm(`${newClasses.length}개의 새 수업을 추가하시겠습니까?\n\n${newClasses.join('\n')}`)) return;
+
+      const ref = db.ref('classes');
+      const batch = {};
+      newClasses.forEach(name => {
+        const key = ref.push().key;
+        batch[key] = {
+          id: key,
+          name,
+          subject: guessSubjectFromName(name),
+          teacher: '',
+          status: 'active',
+          schedule: '',
+          createdAt: todayYMD(),
+          endedAt: null,
+          autoExtracted: true
+        };
+      });
+
+      ref.update(batch)
+        .then(() => alert(`${newClasses.length}개의 수업이 추가되었습니다.`))
+        .catch(err => { console.error('수업 추출 실패:', err); alert('수업 추출 실패'); });
+    }
+
+    function guessSubjectFromName(name) {
+      const lower = name.toLowerCase();
+      if (lower.includes('수학') || lower.includes('math')) return '수학';
+      if (lower.includes('영어') || lower.includes('english')) return '영어';
+      if (lower.includes('국어') || lower.includes('korean')) return '국어';
+      if (lower.includes('과학') || lower.includes('science')) return '과학';
+      if (lower.includes('사회') || lower.includes('역사')) return '사회';
+      return '기타';
+    }
+
+    function renderClasses() {
+      const container = document.getElementById('classesList');
+
+      let filtered = Object.entries(classes);
+      if (classStatusFilter === 'active') {
+        filtered = filtered.filter(([id, c]) => c.status !== 'ended');
+      } else if (classStatusFilter === 'ended') {
+        filtered = filtered.filter(([id, c]) => c.status === 'ended');
+      }
+
+      filtered.sort((a, b) => (a[1].name || '').localeCompare(b[1].name || ''));
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div class="text-center text-gray-500 py-4">수업이 없습니다</div>';
+        return;
+      }
+
+      let html = '';
+      filtered.forEach(([id, c]) => {
+        const isEnded = c.status === 'ended';
+        const bgClass = isEnded ? 'bg-gray-100' : 'bg-white';
+        const textClass = isEnded ? 'text-gray-500' : '';
+        const subjectBadge = `<span class="text-xs px-2 py-0.5 rounded-full ${c.subject === '수학' ? 'bg-purple-100 text-purple-700' : (c.subject === '영어' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700')}">${escapeHTML(c.subject || '기타')}</span>`;
+
+        html += `<div class="flex items-center gap-3 p-3 ${bgClass} rounded-lg border">
+          <div class="flex-1">
+            <div class="flex items-center gap-2">
+              <span class="font-semibold ${textClass}">${escapeHTML(c.name)}</span>
+              ${subjectBadge}
+              ${isEnded ? '<span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600">종강</span>' : ''}
+              ${c.autoExtracted ? '<span class="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-600">자동추출</span>' : ''}
+            </div>
+            ${c.teacher ? `<div class="text-sm text-gray-600">담당: ${escapeHTML(c.teacher)}</div>` : ''}
+            ${c.schedule ? `<div class="text-xs text-gray-500">${escapeHTML(c.schedule)}</div>` : ''}
+          </div>
+          <div class="flex gap-1">
+            <button onclick="endClass('${id}')" class="px-2 py-1 text-xs ${isEnded ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'} rounded hover:opacity-80">${isEnded ? '재개' : '종강'}</button>
+            <button onclick="deleteClass('${id}')" class="delete-btn text-gray-400 hover:text-red-500">✕</button>
+          </div>
+        </div>`;
+      });
+
+      container.innerHTML = html;
+    }
+
+    // ===================== 카카오 알림톡 메시지 =====================
+    function generateHomeworkMessage(homeworkId) {
+      const hw = homework[homeworkId];
+      if (!hw) return '';
+
+      const student = students[hw.studentId] || {};
+      const dueDateFormatted = hw.dueDate ? formatDateKorean(hw.dueDate) : '미정';
+
+      let message = `[강한루시학원] 숙제 안내
+
+안녕하세요, ${hw.studentName} 학생 보호자님.
+
+📚 숙제: ${hw.title}`;
+
+      if (hw.textbook || hw.pageRange) {
+        message += `\n📖 교재/범위: ${hw.textbook || ''} ${hw.pageRange || ''}`.trim();
+      }
+
+      if (hw.description) {
+        message += `\n📝 상세: ${hw.description}`;
+      }
+
+      message += `\n⏰ 마감일: ${dueDateFormatted}
+
+감사합니다.`;
+
+      return message;
+    }
+
+    function openKakaoMessage(homeworkId) {
+      currentKakaoMessage = generateHomeworkMessage(homeworkId);
+      document.getElementById('kakaoMessageContent').textContent = currentKakaoMessage;
+      toggleKakaoMessageModal();
+    }
+
+    function copyKakaoMessage() {
+      if (!currentKakaoMessage) return;
+
+      navigator.clipboard.writeText(currentKakaoMessage)
+        .then(() => {
+          alert('메시지가 클립보드에 복사되었습니다.');
+        })
+        .catch(err => {
+          console.error('복사 실패:', err);
+          // Fallback
+          const textarea = document.createElement('textarea');
+          textarea.value = currentKakaoMessage;
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+          alert('메시지가 클립보드에 복사되었습니다.');
+        });
+    }
+
+    // ===================== 엑셀 숙제 업로드 =====================
+    function importHomeworkFromExcel(event) {
+      const input = event.target;
+      const file = input.files && input.files[0];
+      if (!file) return;
+      if (!window.XLSX) {
+        alert('엑셀 라이브러리를 불러오지 못했습니다.');
+        input.value = '';
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const data = new Uint8Array(reader.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+          if (!rows.length) {
+            alert('엑셀에 데이터가 없습니다.');
+            return;
+          }
+
+          const header = rows[0].map(h => String(h).trim());
+          const required = ['수업명', '학생이름', '숙제내용', '마감일'];
+          const missing = required.filter(name => !header.includes(name));
+          if (missing.length) {
+            alert(`엑셀 헤더가 올바르지 않습니다.\n필수: ${required.join(', ')}`);
+            return;
+          }
+
+          const colIdx = {};
+          ['수업명', '학생이름', '숙제내용', '마감일', '교재', '범위'].forEach(name => {
+            colIdx[name] = header.indexOf(name);
+          });
+
+          // 수업명 -> 수업ID 매핑
+          const classNameToId = {};
+          Object.entries(classes).forEach(([id, c]) => {
+            classNameToId[c.name] = id;
+          });
+
+          // 학생명 -> 학생ID 매핑
+          const studentNameToId = {};
+          Object.entries(students).forEach(([id, s]) => {
+            studentNameToId[s.name] = id;
+          });
+
+          const ref = db.ref('homework');
+          const batch = {};
+          let addedCount = 0;
+          let skippedCount = 0;
+
+          for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            const className = String(row[colIdx['수업명']] || '').trim();
+            const studentName = String(row[colIdx['학생이름']] || '').trim();
+            const title = String(row[colIdx['숙제내용']] || '').trim();
+            let dueDate = String(row[colIdx['마감일']] || '').trim();
+            const textbook = colIdx['교재'] >= 0 ? String(row[colIdx['교재']] || '').trim() : '';
+            const pageRange = colIdx['범위'] >= 0 ? String(row[colIdx['범위']] || '').trim() : '';
+
+            if (!studentName || !title || !dueDate) {
+              skippedCount++;
+              continue;
+            }
+
+            // 날짜 형식 변환 (YYYY-MM-DD 또는 YYYY/MM/DD 또는 숫자 형식)
+            if (typeof row[colIdx['마감일']] === 'number') {
+              // Excel 날짜 시리얼 넘버
+              const excelDate = new Date((row[colIdx['마감일']] - 25569) * 86400 * 1000);
+              dueDate = ymdOf(excelDate);
+            } else {
+              dueDate = dueDate.replace(/\//g, '-');
+              // YYYY-MM-DD 형식 확인
+              if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
+                skippedCount++;
+                continue;
+              }
+            }
+
+            const classId = classNameToId[className] || '';
+            const classInfo = classes[classId] || {};
+            const studentId = studentNameToId[studentName] || '';
+
+            const key = ref.push().key;
+            batch[key] = {
+              id: key,
+              classId,
+              className,
+              subject: classInfo.subject || '',
+              studentId,
+              studentName,
+              title,
+              description: '',
+              textbook,
+              pageRange,
+              assignedDate: todayYMD(),
+              dueDate,
+              completed: false,
+              completedAt: null,
+              feedback: '',
+              notificationSent: false,
+              notificationSentAt: null
+            };
+            addedCount++;
+          }
+
+          if (addedCount === 0) {
+            alert(`추가할 숙제가 없습니다. (건너뜀: ${skippedCount}건)`);
+            return;
+          }
+
+          ref.update(batch)
+            .then(() => alert(`엑셀 업로드 완료: ${addedCount}건 추가, ${skippedCount}건 건너뜀`))
+            .catch(err => { console.error('엑셀 업로드 실패:', err); alert('엑셀 업로드 실패'); });
+
+        } catch (err) {
+          console.error(err);
+          alert('엑셀 읽기 실패');
+        } finally {
+          input.value = '';
+        }
+      };
+
+      reader.readAsArrayBuffer(file);
     }
 
     // 클래스카드
@@ -1697,17 +3461,103 @@
       // retestRef, settingsRef, vocab refs는 전역 유지
     }
 
-    function attachListenersForDate() {
+    // 과거 미완료 항목 로드
+    async function loadPastIncompleteTasks() {
+      console.log('과거 미완료 항목 로드 시작...');
+      const startTime = Date.now();
+
+      pastIncompleteDailyTasks = {};
+      pastIncompleteTypingTasks = {};
+
+      const today = todayYMD();
+      const promises = [];
+      let errorCount = 0;
+
+      try {
+        // 과거 30일 체크
+        for (let i = 1; i <= 30; i++) {
+          const pastDate = addDays(today, -i);
+
+          // Daily tasks 체크
+          promises.push(
+            db.ref('daily/' + pastDate).once('value').then(snap => {
+              if (snap.exists()) {
+                const tasks = snap.val();
+                const incomplete = {};
+                for (const [id, task] of Object.entries(tasks)) {
+                  if (!task.checked) {
+                    incomplete[id] = {...task, originalDate: pastDate};
+                  }
+                }
+                if (Object.keys(incomplete).length > 0) {
+                  pastIncompleteDailyTasks[pastDate] = incomplete;
+                }
+              }
+            }).catch(err => {
+              console.error('과거 daily 로드 실패:', pastDate, err);
+              errorCount++;
+            })
+          );
+
+          // Typing tasks 체크
+          promises.push(
+            db.ref('typing/' + pastDate).once('value').then(snap => {
+              if (snap.exists()) {
+                const tasks = snap.val();
+                const incomplete = {};
+                for (const [id, task] of Object.entries(tasks)) {
+                  if (!task.completed) {
+                    incomplete[id] = {...task, originalDate: pastDate};
+                  }
+                }
+                if (Object.keys(incomplete).length > 0) {
+                  pastIncompleteTypingTasks[pastDate] = incomplete;
+                }
+              }
+            }).catch(err => {
+              console.error('과거 typing 로드 실패:', pastDate, err);
+              errorCount++;
+            })
+          );
+        }
+
+        await Promise.all(promises);
+
+        const elapsed = Date.now() - startTime;
+        const dailyCount = Object.keys(pastIncompleteDailyTasks).reduce((sum, date) =>
+          sum + Object.keys(pastIncompleteDailyTasks[date]).length, 0);
+        const typingCount = Object.keys(pastIncompleteTypingTasks).reduce((sum, date) =>
+          sum + Object.keys(pastIncompleteTypingTasks[date]).length, 0);
+
+        console.log(`과거 미완료 항목 로드 완료 (${elapsed}ms): 할일 ${dailyCount}개, 타이핑 ${typingCount}개`);
+
+        // 에러가 많이 발생한 경우 사용자에게 알림
+        if (errorCount > 10) {
+          console.warn(`과거 미완료 항목 로드 중 ${errorCount}개의 오류가 발생했습니다.`);
+        }
+      } catch (err) {
+        console.error('과거 미완료 항목 로드 중 치명적 오류:', err);
+        // 치명적 오류가 발생해도 앱은 계속 작동하도록 함
+      }
+      // 렌더링은 리스너에서 자동으로 수행됨
+    }
+
+    async function attachListenersForDate() {
+      // 과거 미완료 항목을 먼저 로드
+      await loadPastIncompleteTasks();
+
       // daily
       dailyRef = db.ref('daily/' + currentViewDate);
-      dailyRef.on('value', async snap => {
+      dailyRef.on('value', snap => {
         if (!snap.exists()) {
-          await seedDefaultDaily(currentViewDate);
-          dailyTasks = {};
+          seedDefaultDaily(currentViewDate).then(() => {
+            dailyTasks = {};
+            renderDailyTasks(); checkNotifications();
+          });
         } else {
           dailyTasks = snap.val() || {};
+          renderDailyTasks(); checkNotifications();
         }
-        renderDailyTasks(); checkNotifications();
       }, err => {
         console.error('일일 태스크 로드 실패:', err);
         dailyTasks = {};
@@ -1851,6 +3701,34 @@
           }
         });
       }
+
+      // 숙제 관리
+      if(!homeworkRef){
+        homeworkRef = db.ref('homework');
+        homeworkRef.on('value', snap=>{
+          homework = snap.val() || {};
+          renderHomework(); populateHomeworkClassSelect(); checkNotifications();
+          console.log(`✅ 숙제 데이터 로드 완료: ${Object.keys(homework).length}개`);
+        }, err => {
+          console.error('❌ 숙제 데이터 로드 실패:', err);
+          homework = {};
+          renderHomework();
+        });
+      }
+
+      // 수업 관리
+      if(!classesRef){
+        classesRef = db.ref('classes');
+        classesRef.on('value', snap=>{
+          classes = snap.val() || {};
+          renderClasses(); populateHomeworkClassSelect();
+          console.log(`✅ 수업 데이터 로드 완료: ${Object.keys(classes).length}개`);
+        }, err => {
+          console.error('❌ 수업 데이터 로드 실패:', err);
+          classes = {};
+          renderClasses();
+        });
+      }
     }
 
     /* ===================== 날짜 이동/초기화 ===================== */
@@ -1897,6 +3775,11 @@
       return {start: parseInt(m[1],10), end: parseInt(m[2],10)};
     }
     function vocabNearestOnOrAfter(ymd, weekdays){
+      // 요일 배열 유효성 검증
+      if (!weekdays || !Array.isArray(weekdays) || weekdays.length === 0) {
+        console.error('vocabNearestOnOrAfter: 유효하지 않은 요일 배열:', weekdays);
+        return null;
+      }
       const d = new Date(ymd+'T00:00:00');
       const dw = d.getDay();
       if(weekdays.includes(dw)) return ymd;
@@ -1908,6 +3791,11 @@
       return best;
     }
     function vocabNextByWeekdays(ymd, weekdays){
+      // 요일 배열 유효성 검증
+      if (!weekdays || !Array.isArray(weekdays) || weekdays.length === 0) {
+        console.error('vocabNextByWeekdays: 유효하지 않은 요일 배열:', weekdays);
+        return null;
+      }
       const d = new Date(ymd+'T00:00:00');
       const dw = d.getDay();
       const sorted = weekdays.slice().sort((a,b)=>a-b);
@@ -1922,9 +3810,17 @@
     function vocabNextDates(startISO, weekdays, count){
       const out=[];
       let ymd = vocabNearestOnOrAfter(startISO, weekdays);
+      if (!ymd) {
+        console.error('vocabNextDates: vocabNearestOnOrAfter가 null을 반환했습니다');
+        return [];
+      }
       while(out.length<count){
         out.push(ymd);
         ymd = vocabNextByWeekdays(ymd, weekdays);
+        if (!ymd) {
+          console.error('vocabNextDates: vocabNextByWeekdays가 null을 반환했습니다');
+          break;
+        }
       }
       return out;
     }
@@ -2473,6 +4369,7 @@
       if (nt) nt.addEventListener('keydown', (e) => { if (e.key === 'Enter') addNewTask(); });
       vocabSwitchTab('today');
       analysisSwitchTab('summary');
+      switchMainTab(localStorage.getItem('mainTab') || 'work');
     });
   </script>
 </body>
